@@ -1,0 +1,29 @@
+import { DataRecord } from '../types';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+export async function fetchEnergyData(
+  country?: string,
+  indicator?: string,
+  startYear?: number,
+  endYear?: number
+): Promise<DataRecord[]> {
+  const params = new URLSearchParams();
+  if (country) params.append('country', country);
+  if (indicator) params.append('indicator', indicator);
+  if (startYear) params.append('start_year', startYear.toString());
+  if (endYear) params.append('end_year', endYear.toString());
+
+  const url = `${API_URL}/api/v1/data?${params.toString()}`;
+
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) {
+      throw new Error(`API error: ${res.status}`);
+    }
+    return res.json();
+  } catch (error) {
+    console.error("Failed to fetch data:", error);
+    return [];
+  }
+}

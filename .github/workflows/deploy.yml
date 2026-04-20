@@ -1,0 +1,74 @@
+name: Deploy to GCP
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: your-gcp-project-id
+  REGION: us-central1
+  GAR_LOCATION: us-central1-docker.pkg.dev/your-gcp-project-id/energtx-repo
+  BACKEND_IMAGE: energtx-backend
+  FRONTEND_IMAGE: energtx-frontend
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider'
+          service_account: 'my-service-account@my-project.iam.gserviceaccount.com'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker to use Google Artifact Registry
+        run: |-
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build and Push Backend Image
+        working-directory: ./backend
+        run: |-
+          docker build -t "${{ env.GAR_LOCATION }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}" -f Dockerfile ..
+          docker push "${{ env.GAR_LOCATION }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}"
+
+      - name: Build and Push Frontend Image
+        working-directory: ./frontend
+        run: |-
+          docker build -t "${{ env.GAR_LOCATION }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}" -f Dockerfile .
+          docker push "${{ env.GAR_LOCATION }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}"
+
+      - name: Deploy Backend to Cloud Run
+        id: deploy-backend
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: energtx-backend
+          region: ${{ env.REGION }}
+          image: ${{ env.GAR_LOCATION }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          env_vars: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            REDIS_URL=${{ secrets.REDIS_URL }}
+
+      - name: Deploy Frontend to Cloud Run
+        id: deploy-frontend
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: energtx-frontend
+          region: ${{ env.REGION }}
+          image: ${{ env.GAR_LOCATION }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          env_vars: |
+            NEXT_PUBLIC_API_URL=${{ steps.deploy-backend.outputs.url }}
