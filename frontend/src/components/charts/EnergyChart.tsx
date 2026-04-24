@@ -5,25 +5,25 @@ import { DataRecord, ChartDataPoint } from '../../types';
 import { useMemo } from 'react';
 
 export function EnergyChart({ data }: { data: DataRecord[] }) {
-  // Transform data into Recharts format { year: 2020, US: 1234, DE: 5678 }
-  const chartData = useMemo(() => {
+  // Transform data into Recharts format and extract unique countries
+  const { chartData, countries } = useMemo(() => {
     const map = new Map<number, ChartDataPoint>();
+    const countrySet = new Set<string>();
 
     data.forEach(record => {
-      if (!map.has(record.year)) {
-        map.set(record.year, { year: record.year });
+      let yearPoint = map.get(record.year);
+      if (yearPoint === undefined) {
+        yearPoint = { year: record.year };
+        map.set(record.year, yearPoint);
       }
-      map.get(record.year)![record.country] = record.value;
+      yearPoint[record.country] = record.value;
+      countrySet.add(record.country);
     });
 
-    return Array.from(map.values()).sort((a, b) => a.year - b.year);
-  }, [data]);
-
-  // Extract unique countries for lines
-  const countries = useMemo(() => {
-    const set = new Set<string>();
-    data.forEach(d => set.add(d.country));
-    return Array.from(set);
+    return {
+      chartData: Array.from(map.values()).sort((a, b) => a.year - b.year),
+      countries: Array.from(countrySet),
+    };
   }, [data]);
 
   const colors = ['#2563eb', '#16a34a', '#dc2626', '#ca8a04', '#9333ea'];
