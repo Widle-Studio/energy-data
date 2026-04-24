@@ -79,7 +79,12 @@ impl WorldBankService {
         Ok((source_id, indicator_id))
     }
 
-    pub async fn ensure_country(&self, name: &str, iso2: &str, iso3: &str) -> Result<Uuid, AppError> {
+    pub async fn ensure_country(
+        &self,
+        name: &str,
+        iso2: &str,
+        iso3: &str,
+    ) -> Result<Uuid, AppError> {
         let country_id = sqlx::query!(
             r#"
             INSERT INTO countries (name, iso_alpha2, iso_alpha3)
@@ -126,13 +131,20 @@ impl WorldBankService {
             // World bank returns an array where the second element is the array of data objects
             let parsed: serde_json::Value = serde_json::from_str(&response).map_err(|e| {
                 tracing::error!("Failed to parse JSON: {}", e);
-                AppError::InternalServerError(anyhow::anyhow!("Failed to parse JSON from World Bank"))
+                AppError::InternalServerError(anyhow::anyhow!(
+                    "Failed to parse JSON from World Bank"
+                ))
             })?;
 
-            if let Some(data_array) = parsed.as_array().and_then(|arr| arr.get(1)).and_then(|v| v.as_array()) {
+            if let Some(data_array) = parsed
+                .as_array()
+                .and_then(|arr| arr.get(1))
+                .and_then(|v| v.as_array())
+            {
                 for item in data_array {
                     if let Ok(record) = serde_json::from_value::<WorldBankRecord>(item.clone()) {
-                        if let (Some(value), Ok(year)) = (record.value, record.date.parse::<i32>()) {
+                        if let (Some(value), Ok(year)) = (record.value, record.date.parse::<i32>())
+                        {
                             let result = sqlx::query!(
                                 r#"
                                 INSERT INTO energy_data (country_id, indicator_id, year, value)
