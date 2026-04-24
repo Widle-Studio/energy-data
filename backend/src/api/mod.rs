@@ -1,14 +1,17 @@
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 
-pub mod data;
 pub mod admin;
+pub mod data;
 
-use crate::api::AppState;
+#[derive(Clone)]
+pub struct AppState {
+    pub db: PgPool,
+}
 
 pub fn create_router(state: AppState) -> Router {
     let cors = CorsLayer::permissive();

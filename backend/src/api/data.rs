@@ -1,7 +1,7 @@
 use axum::{
+    Json, Router,
     extract::{Query, State},
     routing::get,
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -62,12 +62,15 @@ async fn get_data(
     .fetch_all(&state.db)
     .await?;
 
-    let response = records.into_iter().map(|r| DataResponse {
-        country: r.country_code,
-        indicator: r.indicator_code,
-        year: r.year,
-        value: r.value.to_string().parse::<f64>().unwrap_or(0.0), // sqlx returns BigDecimal/Numeric
-    }).collect();
+    let response = records
+        .into_iter()
+        .map(|r| DataResponse {
+            country: r.country_code,
+            indicator: r.indicator_code,
+            year: r.year,
+            value: r.value.to_string().parse::<f64>().unwrap_or(0.0), // sqlx returns BigDecimal/Numeric
+        })
+        .collect();
 
     Ok(Json(response))
 }

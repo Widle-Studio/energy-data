@@ -8,8 +8,9 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
-        let database_url = env::var("DATABASE_URL")
-            .map_err(|_| anyhow::anyhow!("DATABASE_URL environment variable must be set"))?;
+        let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://energtx_user:energtx_pass@localhost:5432/energtx".to_string()
+        });
 
         let port = env::var("PORT")
             .unwrap_or_else(|_| "8080".to_string())
