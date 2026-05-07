@@ -43,7 +43,10 @@ mod tests {
         let result = Config::from_env();
         assert!(result.is_ok());
         let config = result.unwrap();
-        assert_eq!(config.database_url, "postgres://user:pass@localhost:5432/db");
+        assert_eq!(
+            config.database_url,
+            "postgres://user:pass@localhost:5432/db"
+        );
         assert_eq!(config.port, 9000);
     }
 
@@ -63,6 +66,11 @@ mod tests {
         env::set_var("PORT", "invalid");
         let result = Config::from_env();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("PORT must be a valid u16"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("PORT must be a valid u16")
+        );
     }
 }
