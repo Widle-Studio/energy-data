@@ -3,6 +3,7 @@ use axum::{
     extract::{Query, State},
     routing::get,
 };
+use bigdecimal::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::{api::AppState, error::AppError};
@@ -68,7 +69,7 @@ async fn get_data(
             country: r.country_code,
             indicator: r.indicator_code,
             year: r.year,
-            value: r.value.to_string().parse::<f64>().unwrap_or(0.0), // sqlx returns BigDecimal/Numeric
+            value: r.value.to_f64().unwrap_or(0.0), // sqlx returns BigDecimal/Numeric
         })
         .collect();
 
