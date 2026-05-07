@@ -39,8 +39,13 @@ mod tests {
     fn test_from_env_success() -> anyhow::Result<()> {
         env::set_var("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
         env::set_var("PORT", "9000");
-        let config = Config::from_env()?;
-        assert_eq!(config.database_url, "postgres://user:pass@localhost:5432/db");
+        let result = Config::from_env();
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert_eq!(
+            config.database_url,
+            "postgres://user:pass@localhost:5432/db"
+        );
         assert_eq!(config.port, 9000);
         Ok(())
     }
@@ -59,10 +64,12 @@ mod tests {
         env::set_var("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
         env::set_var("PORT", "invalid");
         let result = Config::from_env();
-        match result {
-            Err(e) => assert!(e.to_string().contains("PORT must be a valid u16")),
-            Ok(_) => panic!("Expected error for invalid port, but got success"),
-        }
-        Ok(())
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("PORT must be a valid u16")
+        );
     }
 }

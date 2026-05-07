@@ -117,61 +117,73 @@ impl WorldBankService {
         let mut inserted_count = 0;
 
         for (name, iso2, iso3) in countries {
-            let country_id = self.ensure_country(name, iso2, iso3).await?;
-
-            let url = format!(
-                "{}/country/{}/indicator/{}?format=json&per_page=100",
-                WORLD_BANK_API_URL, iso2, ELECTRICITY_INDICATOR
-            );
-
-            tracing::info!("Fetching data for {}: {}", name, url);
-
-            let response = self.client.get(&url).send().await?.text().await?;
-
-            // World bank returns an array where the second element is the array of data objects
-            let parsed: serde_json::Value = serde_json::from_str(&response).map_err(|e| {
-                tracing::error!("Failed to parse JSON: {}", e);
-                AppError::InternalServerError(anyhow::anyhow!(
-                    "Failed to parse JSON from World Bank"
-                ))
-            })?;
-
-            if let Some(data_array) = parsed
-                .as_array()
-                .and_then(|arr| arr.get(1))
-                .and_then(|v| v.as_array())
-            {
-                for item in data_array {
-                    if let Ok(record) = serde_json::from_value::<WorldBankRecord>(item.clone()) {
-                        if let (Some(value), Ok(year)) = (record.value, record.date.parse::<i32>())
-                        {
-                            let result = sqlx::query!(
-                                r#"
-                                INSERT INTO energy_data (country_id, indicator_id, year, value)
-                                VALUES ($1, $2, $3, $4)
-                                ON CONFLICT (country_id, indicator_id, year)
-                                DO UPDATE SET value = EXCLUDED.value
-                                "#,
-                                country_id,
-                                indicator_id,
-                                year,
-                                value
-                            )
-                            .execute(&self.db)
-                            .await;
-
-                            match result {
-                                Ok(_) => inserted_count += 1,
-                                Err(e) => tracing::error!("Failed to insert record: {}", e),
-                            }
-                        }
-                    }
-                }
-            } else {
-                tracing::warn!("No data found for {}", name);
-            }
+            inserted_count += self
+                .sync_single_country(name, iso2, iso3, indicator_id)
+                .await?;
         }
 
         Ok(inserted_count)
+    }
+
+    async fn sync_single_country(
+        &self,
+        name: &str,
+        iso2: &str,
+        iso3: &str,
+        indicator_id: Uuid,
+    ) -> Result<usize, AppError> {
+        let country_id = self.ensure_country(name, iso2, iso3).await?;
+        let mut country_inserted_count = 0;
+
+        let url = format!(
+            "{}/country/{}/indicator/{}?format=json&per_page=100",
+            WORLD_BANK_API_URL, iso2, ELECTRICITY_INDICATOR
+        );
+
+        tracing::info!("Fetching data for {}: {}", name, url);
+
+        let response = self.client.get(&url).send().await?.text().await?;
+
+        // World bank returns an array where the second element is the array of data objects
+        let parsed: serde_json::Value = serde_json::from_str(&response).map_err(|e| {
+            tracing::error!("Failed to parse JSON: {}", e);
+            AppError::InternalServerError(anyhow::anyhow!("Failed to parse JSON from World Bank"))
+        })?;
+
+        if let Some(data_array) = parsed
+            .as_array()
+            .and_then(|arr| arr.get(1))
+            .and_then(|v| v.as_array())
+        {
+            for item in data_array {
+                if let Ok(record) = serde_json::from_value::<WorldBankRecord>(item.clone()) {
+                    if let (Some(value), Ok(year)) = (record.value, record.date.parse::<i32>()) {
+                        let result = sqlx::query!(
+                            r#"
+                            INSERT INTO energy_data (country_id, indicator_id, year, value)
+                            VALUES ($1, $2, $3, $4)
+                            ON CONFLICT (country_id, indicator_id, year)
+                            DO UPDATE SET value = EXCLUDED.value
+                            "#,
+                            country_id,
+                            indicator_id,
+                            year,
+                            value
+                        )
+                        .execute(&self.db)
+                        .await;
+
+                        match result {
+                            Ok(_) => country_inserted_count += 1,
+                            Err(e) => tracing::error!("Failed to insert record: {}", e),
+                        }
+                    }
+                }
+            }
+        } else {
+            tracing::warn!("No data found for {}", name);
+        }
+
+        Ok(country_inserted_count)
     }
 }
