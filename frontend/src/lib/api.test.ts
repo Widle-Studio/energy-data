@@ -1,6 +1,10 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 import assert from 'node:assert';
-import { fetchEnergyData } from './api.ts';
+import { fetchEnergyData, clearApiCache } from './api.ts';
+
+beforeEach(() => {
+  clearApiCache();
+});
 
 test('fetchEnergyData calls fetch with correct URL when all params are provided', async (t) => {
   const fetchMock = t.mock.method(global, 'fetch', async (url: string | URL, options?: RequestInit) => {
