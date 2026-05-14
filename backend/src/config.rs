@@ -4,6 +4,7 @@ use std::env;
 pub struct Config {
     pub database_url: String,
     pub port: u16,
+    pub allowed_origins: Vec<String>,
 }
 
 impl Config {
@@ -16,7 +17,18 @@ impl Config {
             .parse::<u16>()
             .map_err(|_| anyhow::anyhow!("PORT must be a valid u16"))?;
 
-        Ok(Self { database_url, port })
+        let allowed_origins = env::var("ALLOWED_ORIGINS")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        Ok(Self {
+            database_url,
+            port,
+            allowed_origins,
+        })
     }
 }
 
@@ -71,5 +83,29 @@ mod tests {
                 .to_string()
                 .contains("PORT must be a valid u16")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_env_allowed_origins() -> anyhow::Result<()> {
+        env::set_var("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
+        env::set_var("ALLOWED_ORIGINS", "http://localhost:3000, https://energtx.app ");
+        let config = Config::from_env()?;
+        assert_eq!(
+            config.allowed_origins,
+            vec![
+                "http://localhost:3000".to_string(),
+                "https://energtx.app".to_string()
+            ]
+        );
+
+        env::set_var("ALLOWED_ORIGINS", "");
+        let config = Config::from_env()?;
+        assert!(config.allowed_origins.is_empty());
+
+        env::remove_var("ALLOWED_ORIGINS");
+        let config = Config::from_env()?;
+        assert!(config.allowed_origins.is_empty());
+        Ok(())
     }
 }

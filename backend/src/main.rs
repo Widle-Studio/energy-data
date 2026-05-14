@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     let app_state = api::AppState { db: pool };
-    let app = api::create_router(app_state);
+    let app = api::create_router(app_state, config.allowed_origins);
 
     let addr = format!("0.0.0.0:{}", config.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
