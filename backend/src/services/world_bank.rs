@@ -187,3 +187,20 @@ impl WorldBankService {
         Ok(country_inserted_count)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::postgres::PgPoolOptions;
+
+    #[test]
+    fn test_world_bank_service_new() {
+        let db = PgPoolOptions::new()
+            .connect_lazy("postgres://localhost/testdb");
+
+        let service = WorldBankService::new(db);
+
+        // Verify the service can be cloned (required for Axum State)
+        let _cloned = service.clone();
+    }
+}
