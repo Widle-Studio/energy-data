@@ -28,6 +28,9 @@ pub struct DataResponse {
     value: f64,
 }
 
+const DEFAULT_START_YEAR: i32 = 1990;
+const DEFAULT_END_YEAR: i32 = 2025;
+
 async fn get_data(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
@@ -35,8 +38,8 @@ async fn get_data(
     // Basic implementation querying the database
     let country_filter = params.country.unwrap_or_default();
     let indicator_filter = params.indicator.unwrap_or_default();
-    let start_year = params.start_year.unwrap_or(1990);
-    let end_year = params.end_year.unwrap_or(2025);
+    let start_year = params.start_year.unwrap_or(DEFAULT_START_YEAR);
+    let end_year = params.end_year.unwrap_or(DEFAULT_END_YEAR);
 
     let records = sqlx::query!(
         r#"
