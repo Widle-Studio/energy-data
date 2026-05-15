@@ -1,6 +1,7 @@
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 use sqlx::PgPool;
+use bigdecimal::{BigDecimal, FromPrimitive};
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -155,28 +156,47 @@ impl WorldBankService {
             .and_then(|arr| arr.get(1))
             .and_then(|v| v.as_array())
         {
+            let mut country_ids = Vec::new();
+            let mut indicator_ids = Vec::new();
+            let mut years = Vec::new();
+            let mut values = Vec::new();
+
             for item in data_array {
                 if let Ok(record) = serde_json::from_value::<WorldBankRecord>(item.clone()) {
                     if let (Some(value), Ok(year)) = (record.value, record.date.parse::<i32>()) {
-                        let result = sqlx::query!(
-                            r#"
-                            INSERT INTO energy_data (country_id, indicator_id, year, value)
-                            VALUES ($1, $2, $3, $4)
-                            ON CONFLICT (country_id, indicator_id, year)
-                            DO UPDATE SET value = EXCLUDED.value
-                            "#,
-                            country_id,
-                            indicator_id,
-                            year,
-                            value
-                        )
-                        .execute(&self.db)
-                        .await;
+                        let value_bd = BigDecimal::from_f64(value).unwrap_or_default();
 
-                        match result {
-                            Ok(_) => country_inserted_count += 1,
-                            Err(e) => tracing::error!("Failed to insert record: {}", e),
-                        }
+                        country_ids.push(country_id);
+                        indicator_ids.push(indicator_id);
+                        years.push(year);
+                        values.push(value_bd);
+                    }
+                }
+            }
+
+            if !years.is_empty() {
+                let chunk_size = 5000;
+
+                for i in (0..years.len()).step_by(chunk_size) {
+                    let end = std::cmp::min(i + chunk_size, years.len());
+                    let result = sqlx::query!(
+                        r#"
+                        INSERT INTO energy_data (country_id, indicator_id, year, value)
+                        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::int[], $4::numeric[])
+                        ON CONFLICT (country_id, indicator_id, year)
+                        DO UPDATE SET value = EXCLUDED.value
+                        "#,
+                        &country_ids[i..end],
+                        &indicator_ids[i..end],
+                        &years[i..end],
+                        &values[i..end]
+                    )
+                    .execute(&self.db)
+                    .await;
+
+                    match result {
+                        Ok(res) => country_inserted_count += res.rows_affected() as usize,
+                        Err(e) => tracing::error!("Failed to bulk insert records: {}", e),
                     }
                 }
             }
@@ -193,10 +213,10 @@ mod tests {
     use super::*;
     use sqlx::postgres::PgPoolOptions;
 
-    #[test]
-    fn test_world_bank_service_new() {
+    #[tokio::test]
+    async fn test_world_bank_service_new() {
         let db = PgPoolOptions::new()
-            .connect_lazy("postgres://localhost/testdb");
+            .connect_lazy("postgres://localhost/testdb").unwrap();
 
         let service = WorldBankService::new(db);
 

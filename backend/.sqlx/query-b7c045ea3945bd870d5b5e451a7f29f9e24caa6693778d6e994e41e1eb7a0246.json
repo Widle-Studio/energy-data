@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO indicators (source_id, name, code, unit, category)\n            VALUES ($1, $2, $3, $4, $5)\n            ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b7c045ea3945bd870d5b5e451a7f29f9e24caa6693778d6e994e41e1eb7a0246"
+}
