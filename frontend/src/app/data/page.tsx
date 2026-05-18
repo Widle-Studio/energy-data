@@ -1,27 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import { DataFilters } from '../../components/filters/DataFilters';
 import { EnergyChart } from '../../components/charts/EnergyChart';
 import { DataTable } from '../../components/ui/DataTable';
-import { fetchEnergyData } from '../../lib/api';
-import { DataRecord } from '../../types';
+import { getEnergyDataUrl, fetchEnergyData } from '../../lib/api';
 
 export default function DataExplorer() {
-  const [data, setData] = useState<DataRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [country, setCountry] = useState<string>('');
   const [indicator, setIndicator] = useState<string>('');
 
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      const records = await fetchEnergyData(country, indicator);
-      setData(records);
-      setLoading(false);
-    }
-    loadData();
-  }, [country, indicator]);
+  const { data, isLoading } = useSWR(
+    getEnergyDataUrl(country, indicator),
+    () => fetchEnergyData(country, indicator)
+  );
 
   return (
     <div>
@@ -34,14 +27,14 @@ export default function DataExplorer() {
         setSelectedIndicator={setIndicator}
       />
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
       ) : (
         <>
-          <EnergyChart data={data} />
-          <DataTable data={data} />
+          <EnergyChart data={data || []} />
+          <DataTable data={data || []} />
         </>
       )}
     </div>
