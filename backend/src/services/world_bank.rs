@@ -1,7 +1,7 @@
-use reqwest::Client;
-use serde::{Deserialize};
-use sqlx::PgPool;
 use bigdecimal::{BigDecimal, FromPrimitive};
+use reqwest::Client;
+use serde::Deserialize;
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -115,12 +115,14 @@ impl WorldBankService {
             ("India", "IN", "IND"),
         ];
 
-        let mut inserted_count = 0;
+        let futures = countries.into_iter().map(|(name, iso2, iso3)| {
+            self.sync_single_country(name, iso2, iso3, indicator_id)
+        });
 
-        for (name, iso2, iso3) in countries {
-            inserted_count += self
-                .sync_single_country(name, iso2, iso3, indicator_id)
-                .await?;
+        let results = futures::future::join_all(futures).await;
+        let mut inserted_count = 0;
+        for result in results {
+            inserted_count += result?;
         }
 
         Ok(inserted_count)
@@ -223,7 +225,8 @@ mod tests {
     #[tokio::test]
     async fn test_world_bank_service_new() {
         let db = PgPoolOptions::new()
-            .connect_lazy("postgres://localhost/testdb").unwrap();
+            .connect_lazy("postgres://localhost/testdb")
+            .unwrap();
 
         let service = WorldBankService::new(db);
 
