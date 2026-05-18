@@ -151,61 +151,68 @@ impl WorldBankService {
             AppError::InternalServerError(anyhow::anyhow!("Failed to parse JSON from World Bank"))
         })?;
 
-        if let Some(data_array) = parsed
+        let Some(data_array) = parsed
             .as_array()
             .and_then(|arr| arr.get(1))
             .and_then(|v| v.as_array())
-        {
-            let mut country_ids = Vec::new();
-            let mut indicator_ids = Vec::new();
-            let mut years = Vec::new();
-            let mut values = Vec::new();
+        else {
+            tracing::warn!("No data found for {}", name);
+            return Ok(country_inserted_count);
+        };
 
-            for item in data_array {
-                if let Ok(record) = serde_json::from_value::<WorldBankRecord>(item.clone()) {
-                    if let (Some(value), Ok(year)) = (record.value, record.date.parse::<i32>()) {
-                        let value_bd = BigDecimal::from_f64(value).unwrap_or_default();
+        let mut country_ids = Vec::new();
+        let mut indicator_ids = Vec::new();
+        let mut years = Vec::new();
+        let mut values = Vec::new();
 
-                        country_ids.push(country_id);
-                        indicator_ids.push(indicator_id);
-                        years.push(year);
-                        values.push(value_bd);
-                    }
-                }
-            }
+        for item in data_array {
+            let Some((year, value_bd)) = parse_world_bank_record(item) else {
+                continue;
+            };
 
-            if !years.is_empty() {
-                let chunk_size = 5000;
+            country_ids.push(country_id);
+            indicator_ids.push(indicator_id);
+            years.push(year);
+            values.push(value_bd);
+        }
 
-                for i in (0..years.len()).step_by(chunk_size) {
-                    let end = std::cmp::min(i + chunk_size, years.len());
-                    let result = sqlx::query!(
+        if !years.is_empty() {
+            let chunk_size = 5000;
+
+            for i in (0..years.len()).step_by(chunk_size) {
+                let end = std::cmp::min(i + chunk_size, years.len());
+                let result = sqlx::query!(
                         r#"
                         INSERT INTO energy_data (country_id, indicator_id, year, value)
                         SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::int[], $4::numeric[])
                         ON CONFLICT (country_id, indicator_id, year)
                         DO UPDATE SET value = EXCLUDED.value
                         "#,
-                        &country_ids[i..end],
-                        &indicator_ids[i..end],
-                        &years[i..end],
-                        &values[i..end]
-                    )
-                    .execute(&self.db)
-                    .await;
+                    &country_ids[i..end],
+                    &indicator_ids[i..end],
+                    &years[i..end],
+                    &values[i..end]
+                )
+                .execute(&self.db)
+                .await;
 
-                    match result {
-                        Ok(res) => country_inserted_count += res.rows_affected() as usize,
-                        Err(e) => tracing::error!("Failed to bulk insert records: {}", e),
-                    }
+                match result {
+                    Ok(res) => country_inserted_count += res.rows_affected() as usize,
+                    Err(e) => tracing::error!("Failed to bulk insert records: {}", e),
                 }
             }
-        } else {
-            tracing::warn!("No data found for {}", name);
         }
 
         Ok(country_inserted_count)
     }
+}
+
+fn parse_world_bank_record(item: &serde_json::Value) -> Option<(i32, BigDecimal)> {
+    let record = serde_json::from_value::<WorldBankRecord>(item.clone()).ok()?;
+    let value = record.value?;
+    let year = record.date.parse::<i32>().ok()?;
+    let value_bd = BigDecimal::from_f64(value).unwrap_or_default();
+    Some((year, value_bd))
 }
 
 #[cfg(test)]
