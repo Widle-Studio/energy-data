@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                        INSERT INTO energy_data (country_id, indicator_id, year, value)\n                        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::int[], $4::numeric[])\n                        ON CONFLICT (country_id, indicator_id, year)\n                        DO UPDATE SET value = EXCLUDED.value\n                        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "Int4Array",
+        "NumericArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2f91cad1aa46c70825a02f82b340d66dad3e7e4231884a26f2705044cd6094fe"
+}

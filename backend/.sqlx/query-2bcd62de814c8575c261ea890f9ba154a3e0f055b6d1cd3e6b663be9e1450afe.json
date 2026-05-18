@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO countries (name, iso_alpha2, iso_alpha3)\n            VALUES ($1, $2, $3)\n            ON CONFLICT (iso_alpha2) DO UPDATE SET name = EXCLUDED.name\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2bcd62de814c8575c261ea890f9ba154a3e0f055b6d1cd3e6b663be9e1450afe"
+}
