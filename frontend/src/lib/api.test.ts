@@ -1,13 +1,10 @@
-import test, { beforeEach } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert';
-import { fetchEnergyData, clearApiCache } from './api.ts';
-
-beforeEach(() => {
-  clearApiCache();
-});
+import { fetchEnergyData } from './api.ts';
 
 test('fetchEnergyData calls fetch with correct URL when all params are provided', async (t) => {
-  const fetchMock = t.mock.method(global, 'fetch', async (url: string | URL, options?: RequestInit) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const fetchMock = t.mock.method(global, 'fetch', async (url: string | URL, _options?: RequestInit) => {
     assert.ok(url.toString().includes('country=US'));
     assert.ok(url.toString().includes('indicator=EG.ELC.ACCS.ZS'));
     assert.ok(url.toString().includes('start_year=2010'));
@@ -25,7 +22,8 @@ test('fetchEnergyData calls fetch with correct URL when all params are provided'
 });
 
 test('fetchEnergyData calls fetch with correct URL when no params are provided', async (t) => {
-  const fetchMock = t.mock.method(global, 'fetch', async (url: string | URL, options?: RequestInit) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const fetchMock = t.mock.method(global, 'fetch', async (url: string | URL, _options?: RequestInit) => {
     assert.strictEqual(url, 'http://localhost:8080/api/v1/data?');
     return {
       ok: true,
@@ -41,7 +39,8 @@ test('fetchEnergyData calls fetch with correct URL when no params are provided',
 test('fetchEnergyData returns empty array and logs error when response is not ok', async (t) => {
   const consoleSpy = t.mock.method(console, 'error', () => {});
 
-  t.mock.method(global, 'fetch', async (url: string | URL, options?: RequestInit) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  t.mock.method(global, 'fetch', async (_url: string | URL, _options?: RequestInit) => {
     return {
       ok: false,
       status: 500,
