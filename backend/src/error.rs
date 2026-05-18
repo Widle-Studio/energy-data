@@ -16,6 +16,8 @@ pub enum AppError {
     InternalServerError(#[from] anyhow::Error),
     #[error("Request error: {0}")]
     RequestError(#[from] reqwest::Error),
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 }
 
 impl IntoResponse for AppError {
@@ -28,9 +30,8 @@ impl IntoResponse for AppError {
             AppError::InternalServerError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
             }
-            AppError::RequestError(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "External API Error")
-            }
+            AppError::RequestError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "External API Error"),
+            AppError::Unauthorized(ref msg) => (StatusCode::UNAUTHORIZED, msg.as_str()),
         };
 
         let body = Json(json!({

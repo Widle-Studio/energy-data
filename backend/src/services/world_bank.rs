@@ -115,9 +115,9 @@ impl WorldBankService {
             ("India", "IN", "IND"),
         ];
 
-        let futures = countries.into_iter().map(|(name, iso2, iso3)| {
-            self.sync_single_country(name, iso2, iso3, indicator_id)
-        });
+        let futures = countries
+            .into_iter()
+            .map(|(name, iso2, iso3)| self.sync_single_country(name, iso2, iso3, indicator_id));
 
         let results = futures::future::join_all(futures).await;
         let mut inserted_count = 0;
@@ -184,7 +184,7 @@ impl WorldBankService {
             for i in (0..years.len()).step_by(chunk_size) {
                 let end = std::cmp::min(i + chunk_size, years.len());
                 let result = sqlx::query!(
-                        r#"
+                    r#"
                         INSERT INTO energy_data (country_id, indicator_id, year, value)
                         SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::int[], $4::numeric[])
                         ON CONFLICT (country_id, indicator_id, year)

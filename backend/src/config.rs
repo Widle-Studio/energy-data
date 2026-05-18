@@ -6,6 +6,7 @@ pub struct Config {
     pub database_url: String,
     pub port: u16,
     pub allowed_origins: Vec<String>,
+    pub admin_token: Option<String>,
 }
 
 impl Config {
@@ -27,10 +28,17 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        let admin_token = env::var("ADMIN_TOKEN").ok();
+
+        if admin_token.is_none() {
+            tracing::warn!("ADMIN_TOKEN environment variable is not set. Admin endpoints will be inaccessible.");
+        }
+
         Ok(Self {
             database_url,
             port,
             allowed_origins,
+            admin_token,
         })
     }
 }
@@ -62,6 +70,7 @@ mod tests {
         unsafe {
             env::set_var("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
             env::set_var("PORT", "9000");
+            env::set_var("ADMIN_TOKEN", "secret-token");
         }
         let result = Config::from_env();
         assert!(result.is_ok());
@@ -71,6 +80,7 @@ mod tests {
             "postgres://user:pass@localhost:5432/db"
         );
         assert_eq!(config.port, 9000);
+        assert_eq!(config.admin_token, Some("secret-token".to_string()));
         Ok(())
     }
 
@@ -109,6 +119,7 @@ mod tests {
         let _lock = ENV_MUTEX.lock().unwrap();
         unsafe {
             env::set_var("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
+            env::set_var("PORT", "8080"); // Ensure PORT is valid so it doesn't fail
             env::set_var("ALLOWED_ORIGINS", "http://localhost:3000, https://energtx.app ");
         }
         let config = Config::from_env()?;
