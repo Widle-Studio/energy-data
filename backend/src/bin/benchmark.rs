@@ -9,9 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/energy_data".to_string());
 
-    let db = PgPoolOptions::new()
-        .connect(&database_url)
-        .await?;
+    let db = PgPoolOptions::new().connect(&database_url).await?;
 
     let service = WorldBankService::new(db);
 

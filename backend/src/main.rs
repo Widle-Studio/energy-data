@@ -29,7 +29,10 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Running migrations...");
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    let app_state = api::AppState { db: pool };
+    let app_state = api::AppState {
+        db: pool,
+        admin_token: config.admin_token,
+    };
     let app = api::create_router(app_state, config.allowed_origins);
 
     let addr = format!("0.0.0.0:{}", config.port);

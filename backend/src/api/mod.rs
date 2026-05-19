@@ -1,6 +1,7 @@
 use axum::{
     Router,
     http::{Method, header},
+    middleware,
     routing::get,
 };
 use sqlx::PgPool;
@@ -12,6 +13,7 @@ pub mod data;
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
+    pub admin_token: Option<String>,
 }
 
 pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
@@ -32,7 +34,13 @@ pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
     Router::new()
         .route("/api/v1/health", get(health_check))
         .nest("/api/v1/data", data::routes())
-        .nest("/api/v1/admin", admin::routes())
+        .nest(
+            "/api/v1/admin",
+            admin::routes().route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                admin::auth_middleware,
+            )),
+        )
         .layer(cors)
         .with_state(state)
 }
