@@ -1,7 +1,7 @@
 use bigdecimal::{BigDecimal, FromPrimitive};
 use reqwest::Client;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -173,25 +173,36 @@ impl WorldBankService {
             values.push(value_bd);
         }
 
-        if !years.is_empty() {
-            let chunk_size = 5000;
+        let tuples: Vec<_> = country_ids
+            .into_iter()
+            .zip(indicator_ids)
+            .zip(years)
+            .zip(values)
+            .map(|(((c, i), y), v)| (c, i, y, v))
+            .collect();
 
-            for i in (0..years.len()).step_by(chunk_size) {
-                let end = std::cmp::min(i + chunk_size, years.len());
-                let result = sqlx::query!(
-                    r#"
-                        INSERT INTO energy_data (country_id, indicator_id, year, value)
-                        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::int[], $4::numeric[])
-                        ON CONFLICT (country_id, indicator_id, year)
-                        DO UPDATE SET value = EXCLUDED.value
-                        "#,
-                    &country_ids[i..end],
-                    &indicator_ids[i..end],
-                    &years[i..end],
-                    &values[i..end]
-                )
-                .execute(&self.db)
-                .await;
+        if !tuples.is_empty() {
+            let chunk_size = 65535 / 4;
+
+            for chunk in tuples.chunks(chunk_size) {
+                let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
+                    "INSERT INTO energy_data (country_id, indicator_id, year, value) ",
+                );
+
+                query_builder.push_values(
+                    chunk,
+                    |mut b, (country_id, indicator_id, year, value)| {
+                        b.push_bind(*country_id)
+                            .push_bind(*indicator_id)
+                            .push_bind(*year)
+                            .push_bind(value.clone());
+                    },
+                );
+
+                query_builder.push(" ON CONFLICT (country_id, indicator_id, year) DO UPDATE SET value = EXCLUDED.value");
+
+                let query = query_builder.build();
+                let result = query.execute(&self.db).await;
 
                 match result {
                     Ok(res) => country_inserted_count += res.rows_affected() as usize,
@@ -216,7 +227,6 @@ fn parse_world_bank_record(item: &serde_json::Value) -> Option<(i32, BigDecimal)
 mod tests {
     use super::*;
     use sqlx::postgres::PgPoolOptions;
-
     #[tokio::test]
     async fn test_world_bank_service_new() {
         let db = PgPoolOptions::new()
