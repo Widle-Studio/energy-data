@@ -7,6 +7,7 @@ use axum::{
     routing::post,
 };
 use serde_json::json;
+use subtle::ConstantTimeEq;
 
 use crate::{api::AppState, error::AppError, services::world_bank::WorldBankService};
 
@@ -34,7 +35,13 @@ pub async fn auth_middleware(
         Some(header_value) => {
             if let Ok(auth_str) = header_value.to_str() {
                 if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                    token == admin_token
+                    // Use constant-time comparison to prevent timing attacks
+                    // Both strings must be the same length, otherwise it's immediately false
+                    if token.len() == admin_token.len() {
+                        token.as_bytes().ct_eq(admin_token.as_bytes()).into()
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
