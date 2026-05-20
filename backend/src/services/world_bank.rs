@@ -115,17 +115,12 @@ impl WorldBankService {
             ("India", "IN", "IND"),
         ];
 
-        let futures = countries
-            .into_iter()
-            .map(|(name, iso2, iso3)| self.sync_single_country(name, iso2, iso3, indicator_id));
+        let futures = countries.into_iter().map(|(name, iso2, iso3)| {
+            self.sync_single_country(name, iso2, iso3, indicator_id)
+        });
 
-        let results = futures::future::join_all(futures).await;
-        let mut inserted_count = 0;
-        for result in results {
-            inserted_count += result?;
-        }
-
-        Ok(inserted_count)
+        let results = futures::future::try_join_all(futures).await?;
+        Ok(results.into_iter().sum())
     }
 
     async fn sync_single_country(
