@@ -31,7 +31,9 @@ impl Config {
         let admin_token = env::var("ADMIN_TOKEN").ok();
 
         if admin_token.is_none() {
-            tracing::warn!("ADMIN_TOKEN environment variable is not set. Admin endpoints will be inaccessible.");
+            tracing::warn!(
+                "ADMIN_TOKEN environment variable is not set. Admin endpoints will be inaccessible."
+            );
         }
 
         Ok(Self {
@@ -55,10 +57,15 @@ mod tests {
     #[test]
     fn test_from_env_missing_database_url() -> anyhow::Result<()> {
         let _lock = ENV_MUTEX.lock().unwrap();
-        unsafe { env::remove_var("DATABASE_URL"); }
+        unsafe {
+            env::remove_var("DATABASE_URL");
+        }
         let result = Config::from_env();
         match result {
-            Err(e) => assert_eq!(e.to_string(), "DATABASE_URL environment variable must be set"),
+            Err(e) => assert_eq!(
+                e.to_string(),
+                "DATABASE_URL environment variable must be set"
+            ),
             Ok(_) => panic!("Expected error for missing DATABASE_URL, but got success"),
         }
         Ok(())
@@ -120,7 +127,10 @@ mod tests {
         unsafe {
             env::set_var("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
             env::set_var("PORT", "8080"); // Ensure PORT is valid so it doesn't fail
-            env::set_var("ALLOWED_ORIGINS", "http://localhost:3000, https://energtx.app ");
+            env::set_var(
+                "ALLOWED_ORIGINS",
+                "http://localhost:3000, https://energtx.app ",
+            );
         }
         let config = Config::from_env()?;
         assert_eq!(
@@ -131,11 +141,15 @@ mod tests {
             ]
         );
 
-        unsafe { env::set_var("ALLOWED_ORIGINS", ""); }
+        unsafe {
+            env::set_var("ALLOWED_ORIGINS", "");
+        }
         let config = Config::from_env()?;
         assert!(config.allowed_origins.is_empty());
 
-        unsafe { env::remove_var("ALLOWED_ORIGINS"); }
+        unsafe {
+            env::remove_var("ALLOWED_ORIGINS");
+        }
         let config = Config::from_env()?;
         assert!(config.allowed_origins.is_empty());
         Ok(())
