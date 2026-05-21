@@ -29,9 +29,15 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Running migrations...");
     sqlx::migrate!("./migrations").run(&pool).await?;
 
+    let cache = moka::future::Cache::builder()
+        .time_to_live(std::time::Duration::from_secs(300))
+        .max_capacity(100_000)
+        .build();
+
     let app_state = api::AppState {
         db: pool,
         admin_token: config.admin_token,
+        cache,
     };
     let app = api::create_router(app_state, config.allowed_origins);
 

@@ -25,6 +25,8 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 uuid = { version = "1.23.0", features = ["v4", "serde"] }
 futures = "0.3.32"
 subtle = "2.6.1"
+moka = { version = "0.12.15", features = ["future"] }
+tower = { version = "0.5.3", features = ["util"] }
 
 [[bin]]
 name = "energtx-backend"
