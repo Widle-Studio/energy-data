@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 
-const WORLD_BANK_API_URL: &str = "https://api.worldbank.org/v2";
+const DEFAULT_WORLD_BANK_API_URL: &str = "https://api.worldbank.org/v2";
 const ELECTRICITY_INDICATOR: &str = "EG.USE.ELEC.KH.PC";
 
 #[derive(Debug, Deserialize)]
@@ -34,6 +34,16 @@ pub struct CountryMeta {
 pub struct WorldBankService {
     client: Client,
     db: PgPool,
+    api_base_url: String,
+}
+
+#[cfg(test)]
+use mockall::automock;
+
+#[cfg_attr(test, automock)]
+#[async_trait::async_trait]
+pub trait WorldBankSync: Send + Sync {
+    async fn sync_electricity_data(&self) -> Result<usize, AppError>;
 }
 
 impl WorldBankService {
@@ -41,7 +51,13 @@ impl WorldBankService {
         Self {
             client: Client::new(),
             db,
+            api_base_url: DEFAULT_WORLD_BANK_API_URL.to_string(),
         }
+    }
+
+    pub fn with_base_url(mut self, url: String) -> Self {
+        self.api_base_url = url;
+        self
     }
 
     pub async fn setup_metadata(&self) -> Result<(Uuid, Uuid), AppError> {
@@ -135,7 +151,7 @@ impl WorldBankService {
 
         let url = format!(
             "{}/country/{}/indicator/{}?format=json&per_page=100",
-            WORLD_BANK_API_URL, iso2, ELECTRICITY_INDICATOR
+            self.api_base_url, iso2, ELECTRICITY_INDICATOR
         );
 
         tracing::info!("Fetching data for {}: {}", name, url);
@@ -215,6 +231,13 @@ impl WorldBankService {
     }
 }
 
+#[async_trait::async_trait]
+impl WorldBankSync for WorldBankService {
+    async fn sync_electricity_data(&self) -> Result<usize, AppError> {
+        self.sync_electricity_data().await
+    }
+}
+
 fn parse_world_bank_record(item: &serde_json::Value) -> Option<(i32, BigDecimal)> {
     let record = serde_json::from_value::<WorldBankRecord>(item.clone()).ok()?;
     let value = record.value?;
@@ -226,16 +249,97 @@ fn parse_world_bank_record(item: &serde_json::Value) -> Option<(i32, BigDecimal)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::postgres::PgPoolOptions;
-    #[tokio::test]
-    async fn test_world_bank_service_new() {
-        let db = PgPoolOptions::new()
-            .connect_lazy("postgres://localhost/testdb")
-            .unwrap();
+    use serde_json::json;
+    use sqlx::PgPool;
+    use wiremock::matchers::{method, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
-        let service = WorldBankService::new(db);
+    #[sqlx::test]
+    async fn test_world_bank_service_new(pool: PgPool) {
+        let service = WorldBankService::new(pool);
 
         // Verify the service can be cloned (required for Axum State)
         let _cloned = service.clone();
+    }
+
+    #[sqlx::test]
+    async fn test_sync_electricity_data(pool: PgPool) {
+        let db = pool.clone();
+
+        let mock_server = MockServer::start().await;
+
+        let mock_response = json!([
+            {
+                "page": 1,
+                "pages": 1,
+                "per_page": 100,
+                "total": 2,
+                "sourceid": "2",
+                "sourcename": "World Development Indicators",
+                "lastupdated": "2024-03-28"
+            },
+            [
+                {
+                    "indicator": {
+                        "id": "EG.USE.ELEC.KH.PC",
+                        "value": "Electric power consumption (kWh per capita)"
+                    },
+                    "country": {
+                        "id": "US",
+                        "value": "United States"
+                    },
+                    "countryiso3code": "USA",
+                    "date": "2014",
+                    "value": 12993.9655794706,
+                    "unit": "",
+                    "obs_status": "",
+                    "decimal": 0
+                },
+                {
+                    "indicator": {
+                        "id": "EG.USE.ELEC.KH.PC",
+                        "value": "Electric power consumption (kWh per capita)"
+                    },
+                    "country": {
+                        "id": "US",
+                        "value": "United States"
+                    },
+                    "countryiso3code": "USA",
+                    "date": "2013",
+                    "value": 13004.0235687723,
+                    "unit": "",
+                    "obs_status": "",
+                    "decimal": 0
+                }
+            ]
+        ]);
+
+        // Mock the World Bank API response for any country using a regex path
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"^/country/[A-Z]{2}/indicator/EG\.USE\.ELEC\.KH\.PC$",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_response))
+            .mount(&mock_server)
+            .await;
+
+        let service = WorldBankService::new(db.clone()).with_base_url(mock_server.uri());
+
+        let result = service.sync_electricity_data().await;
+
+        assert!(result.is_ok());
+
+        // We mocked 4 countries (US, DE, CN, IN), each returning 2 records from the mock response.
+        // Total expected insertions = 4 * 2 = 8
+        let inserted_count = result.unwrap();
+        assert_eq!(inserted_count, 8);
+
+        // Verify data in the database
+        let count: (i64,) = sqlx::query_as("SELECT count(*) FROM energy_data")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+
+        assert_eq!(count.0, 8);
     }
 }
