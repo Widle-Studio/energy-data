@@ -96,7 +96,7 @@ mod tests {
     // Helper to create a test app with the auth middleware
     fn create_test_app(admin_token: Option<String>) -> Router {
         let db = PgPoolOptions::new()
-            .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
+            .connect_lazy("postgres://energtx_user:energtx_pass@localhost:5432/energtx")
             .unwrap();
         let cache = Cache::new(100);
         let state = AppState {
