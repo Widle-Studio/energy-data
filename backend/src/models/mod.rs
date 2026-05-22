@@ -21,14 +21,6 @@ pub struct Country {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
-pub struct DataSource {
-    pub id: Uuid,
-    pub name: String,
-    pub url: Option<String>,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Indicator {
     pub id: Uuid,
     pub source_id: Option<Uuid>,
