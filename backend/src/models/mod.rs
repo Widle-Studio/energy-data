@@ -7,13 +7,6 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
-pub struct Continent {
-    pub id: Uuid,
-    pub name: String,
-    pub code: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Country {
     pub id: Uuid,
     pub continent_id: Option<Uuid>,
