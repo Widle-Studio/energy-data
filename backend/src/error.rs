@@ -45,8 +45,8 @@ impl IntoResponse for AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::response::IntoResponse;
     use axum::http::StatusCode;
+    use axum::response::IntoResponse;
     use serde_json::Value;
 
     // Helper to extract JSON from response
