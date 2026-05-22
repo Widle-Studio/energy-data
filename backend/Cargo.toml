@@ -26,6 +26,8 @@ uuid = { version = "1.23.0", features = ["v4", "serde"] }
 futures = "0.3.32"
 subtle = "2.6.1"
 async-trait = "0.1.89"
+moka = { version = "0.12.15", features = ["future"] }
+tower = { version = "0.5.3", features = ["util"] }
 
 [[bin]]
 name = "energtx-backend"
@@ -36,5 +38,7 @@ name = "benchmark"
 path = "src/bin/benchmark.rs"
 
 [dev-dependencies]
+tower = { version = "0.5.3", features = ["util"] }
 lazy_static = "1.5.0"
 mockall = "0.14.0"
+wiremock = "0.6.5"
