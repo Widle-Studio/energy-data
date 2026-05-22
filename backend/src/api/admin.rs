@@ -9,7 +9,11 @@ use axum::{
 use serde_json::json;
 use subtle::ConstantTimeEq;
 
-use crate::{api::AppState, error::AppError, services::world_bank::WorldBankService};
+use crate::{
+    api::AppState,
+    error::AppError,
+    services::world_bank::{WorldBankService, WorldBankSync},
+};
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/sync/worldbank", post(sync_worldbank))
@@ -63,11 +67,61 @@ async fn sync_worldbank(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = WorldBankService::new(state.db);
+    handle_sync_worldbank(&service).await
+}
 
+async fn handle_sync_worldbank<S: WorldBankSync>(
+    service: &S,
+) -> Result<Json<serde_json::Value>, AppError> {
     let count = service.sync_electricity_data().await?;
 
     Ok(Json(json!({
         "status": "success",
         "message": format!("Successfully synchronized {} records from World Bank", count)
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::world_bank::MockWorldBankSync;
+
+    #[tokio::test]
+    async fn test_handle_sync_worldbank_success() {
+        let mut mock_service = MockWorldBankSync::new();
+        mock_service
+            .expect_sync_electricity_data()
+            .times(1)
+            .returning(|| Ok(42));
+
+        let result = handle_sync_worldbank(&mock_service).await;
+
+        assert!(result.is_ok());
+        let json_value = result.unwrap().0;
+
+        assert_eq!(json_value["status"], "success");
+        assert_eq!(
+            json_value["message"],
+            "Successfully synchronized 42 records from World Bank"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_sync_worldbank_error() {
+        let mut mock_service = MockWorldBankSync::new();
+        mock_service
+            .expect_sync_electricity_data()
+            .times(1)
+            .returning(|| Err(AppError::InternalServerError(anyhow::anyhow!("Sync failed"))));
+
+        let result = handle_sync_worldbank(&mock_service).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::InternalServerError(err) => {
+                assert_eq!(err.to_string(), "Sync failed");
+            }
+            _ => panic!("Expected InternalServerError"),
+        }
+    }
 }
