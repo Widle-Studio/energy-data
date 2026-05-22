@@ -4,7 +4,9 @@ use axum::{
     middleware,
     routing::get,
 };
+use moka::future::Cache;
 use sqlx::PgPool;
+use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 
 pub mod admin;
@@ -14,6 +16,7 @@ pub mod data;
 pub struct AppState {
     pub db: PgPool,
     pub admin_token: Option<String>,
+    pub cache: Cache<String, Arc<Vec<data::DataResponse>>>,
 }
 
 pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
@@ -27,8 +30,6 @@ pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
             .map(|s| s.parse().expect("Invalid origin"))
             .collect();
         cors = cors.allow_origin(origins);
-    } else {
-        cors = cors.allow_origin(tower_http::cors::Any);
     }
 
     Router::new()

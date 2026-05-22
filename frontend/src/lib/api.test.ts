@@ -50,6 +50,10 @@ test('fetchEnergyData returns empty array and logs error when response is not ok
   const data = await fetchEnergyData('US');
   assert.strictEqual(data.length, 0);
   assert.strictEqual(consoleSpy.mock.callCount(), 1);
+  const args = consoleSpy.mock.calls[0].arguments;
+  assert.strictEqual(args[0], 'Failed to fetch data:');
+  assert.ok(args[1] instanceof Error);
+  assert.strictEqual((args[1] as Error).message, 'API error: 500');
 });
 
 test('fetchEnergyData returns empty array and logs error when fetch throws', async (t) => {
@@ -62,4 +66,8 @@ test('fetchEnergyData returns empty array and logs error when fetch throws', asy
   const data = await fetchEnergyData('US');
   assert.strictEqual(data.length, 0);
   assert.strictEqual(consoleSpy.mock.callCount(), 1);
+  const args = consoleSpy.mock.calls[0].arguments;
+  assert.strictEqual(args[0], 'Failed to fetch data:');
+  assert.ok(args[1] instanceof Error);
+  assert.strictEqual((args[1] as Error).message, 'Network failure');
 });

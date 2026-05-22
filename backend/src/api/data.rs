@@ -5,6 +5,7 @@ use axum::{
 };
 use bigdecimal::ToPrimitive;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::{api::AppState, error::AppError};
 
@@ -20,7 +21,7 @@ pub struct DataQuery {
     end_year: Option<i32>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct DataResponse {
     country: String,
     indicator: String,
@@ -35,11 +36,19 @@ async fn get_data(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
 ) -> Result<Json<Vec<DataResponse>>, AppError> {
-    // Basic implementation querying the database
     let country_filter = params.country.unwrap_or_default();
     let indicator_filter = params.indicator.unwrap_or_default();
     let start_year = params.start_year.unwrap_or(DEFAULT_START_YEAR);
     let end_year = params.end_year.unwrap_or(DEFAULT_END_YEAR);
+
+    let cache_key = format!(
+        "{}:{}:{}:{}",
+        country_filter, indicator_filter, start_year, end_year
+    );
+
+    if let Some(cached_data) = state.cache.get(&cache_key).await {
+        return Ok(Json((*cached_data).clone()));
+    }
 
     let records = sqlx::query!(
         r#"
@@ -66,7 +75,7 @@ async fn get_data(
     .fetch_all(&state.db)
     .await?;
 
-    let response = records
+    let response: Vec<DataResponse> = records
         .into_iter()
         .map(|r| DataResponse {
             country: r.country_code,
@@ -75,6 +84,11 @@ async fn get_data(
             value: r.value.to_f64().unwrap_or(0.0), // sqlx returns BigDecimal/Numeric
         })
         .collect();
+
+    state
+        .cache
+        .insert(cache_key, Arc::new(response.clone()))
+        .await;
 
     Ok(Json(response))
 }
