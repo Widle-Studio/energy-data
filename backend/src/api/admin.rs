@@ -95,7 +95,9 @@ mod tests {
 
     // Helper to create a test app with the auth middleware
     fn create_test_app(admin_token: Option<String>) -> Router {
-        let db = PgPoolOptions::new().connect_lazy("postgres://postgres:postgres@localhost:5432/testdb").unwrap();
+        let db = PgPoolOptions::new()
+            .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
+            .unwrap();
         let cache = Cache::new(100);
         let state = AppState {
             db,
@@ -104,10 +106,7 @@ mod tests {
         };
 
         Router::new()
-            .route(
-                "/test",
-                get(|| async { "Success" })
-            )
+            .route("/test", get(|| async { "Success" }))
             .route_layer(axum::middleware::from_fn_with_state(
                 state.clone(),
                 auth_middleware,
@@ -167,6 +166,39 @@ mod tests {
         let request = AxumRequest::builder()
             .uri("/test")
             .header(header::AUTHORIZATION, "Bearer wrong_token")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_auth_middleware_wrong_token_length() {
+        let app = create_test_app(Some("valid_token".to_string()));
+
+        let request = AxumRequest::builder()
+            .uri("/test")
+            .header(header::AUTHORIZATION, "Bearer short")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_auth_middleware_invalid_utf8_header() {
+        let app = create_test_app(Some("valid_token".to_string()));
+
+        // Create a header value with invalid UTF-8
+        let invalid_utf8_header = axum::http::HeaderValue::from_bytes(b"Bearer \xFF\xFF").unwrap();
+
+        let request = AxumRequest::builder()
+            .uri("/test")
+            .header(header::AUTHORIZATION, invalid_utf8_header)
             .body(Body::empty())
             .unwrap();
 
