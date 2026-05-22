@@ -36,6 +36,15 @@ pub struct WorldBankService {
     db: PgPool,
 }
 
+#[cfg(test)]
+use mockall::automock;
+
+#[cfg_attr(test, automock)]
+#[async_trait::async_trait]
+pub trait WorldBankSync: Send + Sync {
+    async fn sync_electricity_data(&self) -> Result<usize, AppError>;
+}
+
 impl WorldBankService {
     pub fn new(db: PgPool) -> Self {
         Self {
@@ -212,6 +221,13 @@ impl WorldBankService {
         }
 
         Ok(country_inserted_count)
+    }
+}
+
+#[async_trait::async_trait]
+impl WorldBankSync for WorldBankService {
+    async fn sync_electricity_data(&self) -> Result<usize, AppError> {
+        self.sync_electricity_data().await
     }
 }
 
