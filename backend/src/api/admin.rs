@@ -35,17 +35,11 @@ pub async fn auth_middleware(
         Some(header_value) => {
             if let Ok(auth_str) = header_value.to_str() {
                 if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                    // Use constant-time comparison to prevent timing attacks
-                    // Both strings must be the same length, otherwise it's immediately false
-                    let is_len_match = token.len() == admin_token.len();
-                    let compare_target = if is_len_match {
-                        admin_token.as_bytes()
+                    if token.len() == admin_token.len() {
+                        token.as_bytes().ct_eq(admin_token.as_bytes()).into()
                     } else {
-                        token.as_bytes()
-                    };
-
-                    let is_match: bool = token.as_bytes().ct_eq(compare_target).into();
-                    is_len_match && is_match
+                        false
+                    }
                 } else {
                     false
                 }
