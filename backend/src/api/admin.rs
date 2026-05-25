@@ -7,6 +7,7 @@ use axum::{
     routing::post,
 };
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
 use crate::{api::AppState, error::AppError, services::world_bank::WorldBankSync};
@@ -35,11 +36,9 @@ pub async fn auth_middleware(
         Some(header_value) => {
             if let Ok(auth_str) = header_value.to_str() {
                 if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                    if token.len() == admin_token.len() {
-                        token.as_bytes().ct_eq(admin_token.as_bytes()).into()
-                    } else {
-                        false
-                    }
+                    let provided_hash = Sha256::digest(token.as_bytes());
+                    let expected_hash = Sha256::digest(admin_token.as_bytes());
+                    provided_hash.ct_eq(&expected_hash).into()
                 } else {
                     false
                 }
@@ -166,6 +165,39 @@ mod tests {
         let request = AxumRequest::builder()
             .uri("/test")
             .header(header::AUTHORIZATION, "Bearer wrong_token")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_auth_middleware_wrong_token_length() {
+        let app = create_test_app(Some("valid_token".to_string()));
+
+        let request = AxumRequest::builder()
+            .uri("/test")
+            .header(header::AUTHORIZATION, "Bearer short")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_auth_middleware_invalid_utf8_header() {
+        let app = create_test_app(Some("valid_token".to_string()));
+
+        // Create a header value with invalid UTF-8
+        let invalid_utf8_header = axum::http::HeaderValue::from_bytes(b"Bearer \xFF\xFF").unwrap();
+
+        let request = AxumRequest::builder()
+            .uri("/test")
+            .header(header::AUTHORIZATION, invalid_utf8_header)
             .body(Body::empty())
             .unwrap();
 
