@@ -61,6 +61,10 @@ mod tests {
         let err = AppError::DatabaseError(sqlx::Error::RowNotFound);
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
 
         let json = get_response_json(response).await;
         assert_eq!(json["error"], "Internal Database Error");
@@ -71,6 +75,10 @@ mod tests {
         let err = AppError::NotFound("Item not found".to_string());
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
 
         let json = get_response_json(response).await;
         assert_eq!(json["error"], "Item not found");
@@ -81,6 +89,10 @@ mod tests {
         let err = AppError::InternalServerError(anyhow::anyhow!("Something went wrong"));
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
 
         let json = get_response_json(response).await;
         assert_eq!(json["error"], "Internal Server Error");
@@ -93,6 +105,10 @@ mod tests {
         let err = AppError::RequestError(reqwest_err);
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
 
         let json = get_response_json(response).await;
         assert_eq!(json["error"], "External API Error");
@@ -103,6 +119,10 @@ mod tests {
         let err = AppError::Unauthorized("Invalid token".to_string());
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
 
         let json = get_response_json(response).await;
         assert_eq!(json["error"], "Invalid token");
