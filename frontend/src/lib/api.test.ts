@@ -72,15 +72,14 @@ test('fetchEnergyData returns empty array and logs error when fetch throws', asy
   assert.strictEqual((args[1] as Error).message, 'Network failure');
 });
 
-test('fetchEnergyData returns empty array and logs error when JSON parsing fails', async (t) => {
+test('fetchEnergyData returns empty array and logs error when res.json() throws', async (t) => {
   const consoleSpy = t.mock.method(console, 'error', () => {});
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  t.mock.method(global, 'fetch', async (_url: string | URL, _options?: RequestInit) => {
+  t.mock.method(global, 'fetch', async () => {
     return {
       ok: true,
       json: async () => {
-        throw new Error('Invalid JSON');
+        throw new SyntaxError('Unexpected token');
       }
     } as Response;
   });
@@ -90,6 +89,6 @@ test('fetchEnergyData returns empty array and logs error when JSON parsing fails
   assert.strictEqual(consoleSpy.mock.callCount(), 1);
   const args = consoleSpy.mock.calls[0].arguments;
   assert.strictEqual(args[0], 'Failed to fetch data:');
-  assert.ok(args[1] instanceof Error);
-  assert.strictEqual((args[1] as Error).message, 'Invalid JSON');
+  assert.ok(args[1] instanceof SyntaxError);
+  assert.strictEqual((args[1] as Error).message, 'Unexpected token');
 });
