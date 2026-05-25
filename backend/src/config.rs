@@ -57,10 +57,13 @@ mod tests {
     #[test]
     fn test_from_env_missing_database_url() -> anyhow::Result<()> {
         let _lock = ENV_MUTEX.lock().unwrap();
+        let _ = std::fs::rename(".env", ".env.bak");
         unsafe {
             env::remove_var("DATABASE_URL");
+            env::set_var("PORT", "8080");
         }
         let result = Config::from_env();
+        let _ = std::fs::rename(".env.bak", ".env");
         match result {
             Err(e) => assert_eq!(
                 e.to_string(),
@@ -74,12 +77,14 @@ mod tests {
     #[test]
     fn test_from_env_success() -> anyhow::Result<()> {
         let _lock = ENV_MUTEX.lock().unwrap();
+        let _ = std::fs::rename(".env", ".env.bak");
         unsafe {
             env::set_var("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
             env::set_var("PORT", "9000");
             env::set_var("ADMIN_TOKEN", "secret-token");
         }
         let result = Config::from_env();
+        let _ = std::fs::rename(".env.bak", ".env");
         assert!(result.is_ok());
         let config = result.unwrap();
         assert_eq!(

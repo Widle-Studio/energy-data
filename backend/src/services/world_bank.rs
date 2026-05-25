@@ -382,4 +382,90 @@ mod tests {
 
         assert_eq!(count.0, 8);
     }
+
+    #[sqlx::test]
+    async fn test_sync_electricity_data_api_error(pool: PgPool) {
+        let db = pool.clone();
+        let mock_server = MockServer::start().await;
+
+        // Mock the World Bank API response to return a 500 error
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"^/country/[A-Z]{2}/indicator/EG\.USE\.ELEC\.KH\.PC$",
+            ))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let service = WorldBankService::new(db.clone()).with_base_url(mock_server.uri());
+        let result = service.sync_electricity_data().await;
+
+        assert!(result.is_err());
+        // result should be reqwest related error, or one wrapped in AppError
+    }
+
+    #[sqlx::test]
+    async fn test_sync_electricity_data_invalid_json(pool: PgPool) {
+        let db = pool.clone();
+        let mock_server = MockServer::start().await;
+
+        // Mock the World Bank API response to return invalid JSON
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"^/country/[A-Z]{2}/indicator/EG\.USE\.ELEC\.KH\.PC$",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string("invalid json"))
+            .mount(&mock_server)
+            .await;
+
+        let service = WorldBankService::new(db.clone()).with_base_url(mock_server.uri());
+        let result = service.sync_electricity_data().await;
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Internal server error") || err_msg.contains("JSON"));
+    }
+
+    #[sqlx::test]
+    async fn test_sync_electricity_data_empty_data(pool: PgPool) {
+        let db = pool.clone();
+        let mock_server = MockServer::start().await;
+
+        // Mock the World Bank API response to return valid JSON but no data items
+        let mock_response = json!([
+            {
+                "page": 1,
+                "pages": 0,
+                "per_page": 100,
+                "total": 0,
+                "sourceid": "2",
+                "sourcename": "World Development Indicators",
+                "lastupdated": "2024-03-28"
+            },
+            null
+        ]);
+
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"^/country/[A-Z]{2}/indicator/EG\.USE\.ELEC\.KH\.PC$",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_response))
+            .mount(&mock_server)
+            .await;
+
+        let service = WorldBankService::new(db.clone()).with_base_url(mock_server.uri());
+        let result = service.sync_electricity_data().await;
+
+        assert!(result.is_ok());
+        let inserted_count = result.unwrap();
+        assert_eq!(inserted_count, 0);
+
+        // Verify data in the database
+        let count: (i64,) = sqlx::query_as("SELECT count(*) FROM energy_data")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+
+        assert_eq!(count.0, 0);
+    }
 }
