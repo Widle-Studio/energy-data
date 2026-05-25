@@ -266,7 +266,7 @@ mod tests {
     async fn test_sync_electricity_data(pool: PgPool) {
         let db = pool.clone();
 
-        let mock_server = MockServer::start().await;
+        let mock_server: MockServer = MockServer::start().await;
 
         let mock_response = json!([
             {
