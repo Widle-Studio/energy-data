@@ -35,9 +35,12 @@ async fn main() -> anyhow::Result<()> {
         .build();
 
     let app_state = api::AppState {
-        db: pool,
+        db: pool.clone(),
         admin_token: config.admin_token,
         cache,
+        world_bank_service: std::sync::Arc::new(
+            crate::services::world_bank::WorldBankService::new(pool.clone()),
+        ),
     };
     let app = api::create_router(app_state, config.allowed_origins);
 
