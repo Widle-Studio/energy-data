@@ -32,6 +32,7 @@ pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
             .collect();
         cors = cors.allow_origin(origins);
     } else {
+        // Explicitly deny all origins if allowed_origins is empty for security
         cors = cors.allow_origin(Vec::<header::HeaderValue>::new());
     }
 
@@ -72,6 +73,7 @@ mod tests {
             db,
             admin_token: Some("test_token".to_string()),
             cache,
+            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
         }
     }
 

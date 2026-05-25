@@ -203,6 +203,7 @@ mod tests {
             db,
             admin_token: None,
             cache: Cache::new(100),
+            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
         };
 
         Router::new()
@@ -308,6 +309,7 @@ mod tests {
             db: pool.clone(),
             admin_token: None,
             cache: Cache::new(100),
+            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
         };
 
         let app = Router::new()
