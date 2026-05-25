@@ -169,12 +169,10 @@ impl WorldBankService {
 
         let country_mapping = self.ensure_countries(countries.clone().into_iter()).await?;
 
-        let futures = countries
-            .into_iter()
-            .map(|(name, iso2, _iso3)| {
-                let country_id = *country_mapping.get(iso2).unwrap();
-                self.sync_single_country(name, iso2, country_id, indicator_id)
-            });
+        let futures = countries.into_iter().map(|(name, iso2, _iso3)| {
+            let country_id = *country_mapping.get(iso2).unwrap();
+            self.sync_single_country(name, iso2, country_id, indicator_id)
+        });
 
         let results = futures::future::try_join_all(futures).await?;
         Ok(results.into_iter().sum())
