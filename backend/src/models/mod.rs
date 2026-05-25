@@ -1,7 +1,3 @@
-#![allow(unused_imports)]
-
-use bigdecimal::BigDecimal;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -23,13 +19,4 @@ pub struct Indicator {
     pub code: String,
     pub unit: Option<String>,
     pub category: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-pub struct EnergyData {
-    pub id: Uuid,
-    pub country_id: Uuid,
-    pub indicator_id: Uuid,
-    pub year: i32,
-    pub value: BigDecimal,
 }
