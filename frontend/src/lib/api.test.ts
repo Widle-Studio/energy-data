@@ -71,3 +71,24 @@ test('fetchEnergyData returns empty array and logs error when fetch throws', asy
   assert.ok(args[1] instanceof Error);
   assert.strictEqual((args[1] as Error).message, 'Network failure');
 });
+
+test('fetchEnergyData returns empty array and logs error when res.json throws', async (t) => {
+  const consoleSpy = t.mock.method(console, 'error', () => {});
+
+  t.mock.method(global, 'fetch', async () => {
+    return {
+      ok: true,
+      json: async () => {
+        throw new SyntaxError('Unexpected token < in JSON at position 0');
+      }
+    } as Response;
+  });
+
+  const data = await fetchEnergyData('US');
+  assert.strictEqual(data.length, 0);
+  assert.strictEqual(consoleSpy.mock.callCount(), 1);
+  const args = consoleSpy.mock.calls[0].arguments;
+  assert.strictEqual(args[0], 'Failed to fetch data:');
+  assert.ok(args[1] instanceof SyntaxError);
+  assert.strictEqual((args[1] as SyntaxError).message, 'Unexpected token < in JSON at position 0');
+});
