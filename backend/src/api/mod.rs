@@ -69,13 +69,14 @@ mod tests {
             .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
             .unwrap();
         let cache = Cache::new(100);
-        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
-        // Set expectations if needed by tests, though just creating it is usually enough for router setup
+        use crate::services::world_bank::WorldBankService;
+        let world_bank_service = std::sync::Arc::new(WorldBankService::new(db.clone()));
+
         AppState {
             db,
             admin_token: Some("test_token".to_string()),
             cache,
-            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
+            world_bank_service,
         }
     }
 
