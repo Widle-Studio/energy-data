@@ -204,7 +204,7 @@ mod tests {
             db,
             admin_token: None,
             cache: Cache::new(100),
-            world_bank_service: std::sync::Arc::new(mock_service),
+            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
         };
 
         Router::new().merge(routes()).with_state(state)
@@ -312,7 +312,7 @@ mod tests {
             db: pool.clone(),
             admin_token: None,
             cache: Cache::new(100),
-            world_bank_service: std::sync::Arc::new(mock_service),
+            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
         };
 
         let app = Router::new().merge(routes()).with_state(state.clone());
