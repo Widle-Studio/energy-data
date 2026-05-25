@@ -120,6 +120,42 @@ impl WorldBankService {
         Ok(country_id)
     }
 
+    pub async fn ensure_countries<'a>(
+        &self,
+        countries: impl Iterator<Item = (&'a str, &'a str, &'a str)> + Clone,
+    ) -> Result<std::collections::HashMap<String, Uuid>, AppError> {
+        let countries_vec: Vec<_> = countries.collect();
+        if countries_vec.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let mut mapping = std::collections::HashMap::new();
+
+        // Postgres allows a maximum of 65535 parameters per query.
+        // We have 3 parameters per country (name, iso_alpha2, iso_alpha3).
+        let chunk_size = 65535 / 3;
+
+        for chunk in countries_vec.chunks(chunk_size) {
+            let mut query_builder: QueryBuilder<Postgres> =
+                QueryBuilder::new("INSERT INTO countries (name, iso_alpha2, iso_alpha3) ");
+
+            query_builder.push_values(chunk, |mut b, (name, iso2, iso3)| {
+                b.push_bind(name).push_bind(iso2).push_bind(iso3);
+            });
+
+            query_builder.push(" ON CONFLICT (iso_alpha2) DO UPDATE SET name = EXCLUDED.name RETURNING iso_alpha2, id");
+
+            let query = query_builder.build_query_as::<(String, Uuid)>();
+            let results = query.fetch_all(&self.db).await?;
+
+            for (iso2, id) in results {
+                mapping.insert(iso2, id);
+            }
+        }
+
+        Ok(mapping)
+    }
+
     pub async fn sync_electricity_data(&self) -> Result<usize, AppError> {
         let (_, indicator_id) = self.setup_metadata().await?;
 
@@ -131,9 +167,14 @@ impl WorldBankService {
             ("India", "IN", "IND"),
         ];
 
+        let country_mapping = self.ensure_countries(countries.clone().into_iter()).await?;
+
         let futures = countries
             .into_iter()
-            .map(|(name, iso2, iso3)| self.sync_single_country(name, iso2, iso3, indicator_id));
+            .map(|(name, iso2, _iso3)| {
+                let country_id = *country_mapping.get(iso2).unwrap();
+                self.sync_single_country(name, iso2, country_id, indicator_id)
+            });
 
         let results = futures::future::try_join_all(futures).await?;
         Ok(results.into_iter().sum())
@@ -143,10 +184,9 @@ impl WorldBankService {
         &self,
         name: &str,
         iso2: &str,
-        iso3: &str,
+        country_id: Uuid,
         indicator_id: Uuid,
     ) -> Result<usize, AppError> {
-        let country_id = self.ensure_country(name, iso2, iso3).await?;
         let mut country_inserted_count = 0;
 
         let url = format!(
@@ -266,7 +306,7 @@ mod tests {
     async fn test_sync_electricity_data(pool: PgPool) {
         let db = pool.clone();
 
-        let mock_server = MockServer::start().await;
+        let mock_server: MockServer = MockServer::start().await;
 
         let mock_response = json!([
             {
