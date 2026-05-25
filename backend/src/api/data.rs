@@ -174,6 +174,20 @@ mod tests {
         .await
         .unwrap();
 
+        let indicator_id2 = uuid::Uuid::from_str("00000000-0000-0000-0000-000000000014").unwrap();
+        sqlx::query(
+            "INSERT INTO indicators (id, source_id, name, code, unit, category) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING"
+        )
+        .bind(indicator_id2)
+        .bind(source_id)
+        .bind("Another Test Indicator")
+        .bind("OTHER.IND")
+        .bind("Unit")
+        .bind("Category")
+        .execute(pool)
+        .await
+        .unwrap();
+
         // Insert energy data
         sqlx::query(
             "INSERT INTO energy_data (country_id, indicator_id, year, value) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING"
@@ -196,13 +210,28 @@ mod tests {
         .execute(pool)
         .await
         .unwrap();
+
+        sqlx::query(
+            "INSERT INTO energy_data (country_id, indicator_id, year, value) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING"
+        )
+        .bind(country_id)
+        .bind(indicator_id2)
+        .bind(2022)
+        .bind(bigdecimal::BigDecimal::from(300))
+        .execute(pool)
+        .await
+        .unwrap();
     }
 
     fn create_test_app(db: PgPool) -> Router {
+        use crate::services::world_bank::WorldBankService;
+        let world_bank_service = std::sync::Arc::new(WorldBankService::new(db.clone()));
+
         let state = AppState {
             db,
             admin_token: None,
             cache: Cache::new(100),
+            world_bank_service,
         };
 
         Router::new()
@@ -231,8 +260,8 @@ mod tests {
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
-        // We have 2 data points: DE 2020 and FR 2021
-        assert_eq!(data.len(), 2);
+        // We have 3 data points: DE 2020, FR 2021, and DE 2022
+        assert_eq!(data.len(), 3);
     }
 
     #[sqlx::test]
@@ -255,9 +284,11 @@ mod tests {
 
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
-        assert_eq!(data.len(), 1);
+        assert_eq!(data.len(), 2);
         assert_eq!(data[0]["country"], "DE");
         assert_eq!(data[0]["value"], 100.0);
+        assert_eq!(data[1]["country"], "DE");
+        assert_eq!(data[1]["value"], 300.0);
 
         let response_empty = app
             .clone()
@@ -296,18 +327,104 @@ mod tests {
 
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
-        assert_eq!(data.len(), 1);
+        assert_eq!(data.len(), 2);
         assert_eq!(data[0]["country"], "FR");
         assert_eq!(data[0]["year"], 2021);
+        assert_eq!(data[1]["country"], "DE");
+        assert_eq!(data[1]["year"], 2022);
+    }
+
+    #[sqlx::test]
+    async fn test_get_data_with_indicator_filter(pool: PgPool) {
+        setup_test_db(&pool).await;
+        let app = create_test_app(pool);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/?indicator=OTHER.IND")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0]["indicator"], "OTHER.IND");
+        assert_eq!(data[0]["country"], "DE");
+        assert_eq!(data[0]["value"], 300.0);
+    }
+
+    #[sqlx::test]
+    async fn test_get_data_with_end_year_filter(pool: PgPool) {
+        setup_test_db(&pool).await;
+        let app = create_test_app(pool);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/?end_year=2020")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0]["country"], "DE");
+        assert_eq!(data[0]["year"], 2020);
+    }
+
+    #[sqlx::test]
+    async fn test_get_data_with_multiple_filters(pool: PgPool) {
+        setup_test_db(&pool).await;
+        let app = create_test_app(pool);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/?country=DE&indicator=TEST.IND&start_year=2019&end_year=2021")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0]["country"], "DE");
+        assert_eq!(data[0]["indicator"], "TEST.IND");
+        assert_eq!(data[0]["year"], 2020);
     }
 
     #[sqlx::test]
     async fn test_get_data_cache(pool: PgPool) {
         setup_test_db(&pool).await;
+        use crate::services::world_bank::WorldBankService;
+        let world_bank_service = std::sync::Arc::new(WorldBankService::new(pool.clone()));
+
         let state = AppState {
             db: pool.clone(),
             admin_token: None,
             cache: Cache::new(100),
+            world_bank_service,
         };
 
         let app = Router::new()
@@ -348,7 +465,7 @@ mod tests {
         let body = axum::body::to_bytes(response2.into_body(), usize::MAX).await.unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
-        assert_eq!(data.len(), 1);
+        assert_eq!(data.len(), 2);
         assert_eq!(data[0]["country"], "DE");
     }
 }

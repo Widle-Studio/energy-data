@@ -68,10 +68,14 @@ mod tests {
             .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
             .unwrap();
         let cache = Cache::new(100);
+        use crate::services::world_bank::WorldBankService;
+        let world_bank_service = std::sync::Arc::new(WorldBankService::new(db.clone()));
+
         AppState {
             db,
             admin_token: Some("test_token".to_string()),
             cache,
+            world_bank_service,
         }
     }
 
