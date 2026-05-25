@@ -45,8 +45,8 @@ impl IntoResponse for AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::response::IntoResponse;
     use axum::http::StatusCode;
+    use axum::response::IntoResponse;
     use serde_json::Value;
 
     // Helper to extract JSON from response
@@ -126,5 +126,46 @@ mod tests {
 
         let json = get_response_json(response).await;
         assert_eq!(json["error"], "Invalid token");
+    }
+
+    #[test]
+    fn test_error_display() {
+        let db_err = AppError::DatabaseError(sqlx::Error::RowNotFound);
+        assert_eq!(db_err.to_string(), "Database error: no rows returned by a query that expected to return at least one row");
+
+        let not_found_err = AppError::NotFound("User not found".to_string());
+        assert_eq!(not_found_err.to_string(), "Not found: User not found");
+
+        let internal_err = AppError::InternalServerError(anyhow::anyhow!("Something broke"));
+        assert_eq!(internal_err.to_string(), "Internal server error");
+
+        // Construct a dummy reqwest::Error
+        let reqwest_underlying = reqwest::Client::new().get("").build().unwrap_err();
+        let request_err = AppError::RequestError(reqwest_underlying);
+        assert!(request_err.to_string().starts_with("Request error:"));
+
+        let unauthorized_err = AppError::Unauthorized("Missing token".to_string());
+        assert_eq!(unauthorized_err.to_string(), "Unauthorized: Missing token");
+    }
+
+    #[test]
+    fn test_from_sqlx_error() {
+        let sqlx_err = sqlx::Error::RowNotFound;
+        let app_err: AppError = sqlx_err.into();
+        assert!(matches!(app_err, AppError::DatabaseError(_)));
+    }
+
+    #[test]
+    fn test_from_anyhow_error() {
+        let anyhow_err = anyhow::anyhow!("Some internal error");
+        let app_err: AppError = anyhow_err.into();
+        assert!(matches!(app_err, AppError::InternalServerError(_)));
+    }
+
+    #[test]
+    fn test_from_reqwest_error() {
+        let reqwest_err = reqwest::Client::new().get("").build().unwrap_err();
+        let app_err: AppError = reqwest_err.into();
+        assert!(matches!(app_err, AppError::RequestError(_)));
     }
 }
