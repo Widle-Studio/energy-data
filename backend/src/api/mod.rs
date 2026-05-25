@@ -32,6 +32,7 @@ pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
             .collect();
         cors = cors.allow_origin(origins);
     } else {
+        // Explicitly deny all origins if allowed_origins is empty for security
         cors = cors.allow_origin(Vec::<header::HeaderValue>::new());
     }
 
@@ -99,7 +100,11 @@ mod tests {
         // if the origin is not allowed, or reject it depending on exact configuration.
         // Let's just verify it processes the request.
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(!response.headers().contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+        assert!(
+            !response
+                .headers()
+                .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+        );
     }
 
     #[tokio::test]
@@ -120,8 +125,61 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(),
+            response
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .unwrap(),
             allowed_origin
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cors_multiple_origins_allowed() {
+        let state = setup_state();
+        let allowed_origins = vec![
+            "https://allowed1.example.com".to_string(),
+            "https://allowed2.example.com".to_string(),
+        ];
+        let app = create_router(state, allowed_origins);
+
+        // Test first allowed origin
+        let request1 = Request::builder()
+            .method("OPTIONS")
+            .uri("/api/v1/health")
+            .header(header::ORIGIN, "https://allowed1.example.com")
+            .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response1 = app.clone().oneshot(request1).await.unwrap();
+
+        assert_eq!(response1.status(), StatusCode::OK);
+        assert_eq!(
+            response1
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .unwrap(),
+            "https://allowed1.example.com"
+        );
+
+        // Test second allowed origin
+        let request2 = Request::builder()
+            .method("OPTIONS")
+            .uri("/api/v1/health")
+            .header(header::ORIGIN, "https://allowed2.example.com")
+            .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response2 = app.oneshot(request2).await.unwrap();
+
+        assert_eq!(response2.status(), StatusCode::OK);
+        assert_eq!(
+            response2
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .unwrap(),
+            "https://allowed2.example.com"
         );
     }
 
@@ -142,7 +200,11 @@ mod tests {
         let response = app.oneshot(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(!response.headers().contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+        assert!(
+            !response
+                .headers()
+                .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+        );
     }
 
     #[tokio::test]

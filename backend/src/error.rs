@@ -62,7 +62,10 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(
-            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .unwrap(),
             "application/json"
         );
 
@@ -76,7 +79,10 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert_eq!(
-            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .unwrap(),
             "application/json"
         );
 
@@ -90,7 +96,10 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(
-            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .unwrap(),
             "application/json"
         );
 
@@ -106,7 +115,10 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(
-            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .unwrap(),
             "application/json"
         );
 
@@ -120,7 +132,10 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(
-            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .unwrap(),
             "application/json"
         );
 
@@ -131,7 +146,10 @@ mod tests {
     #[test]
     fn test_error_display() {
         let db_err = AppError::DatabaseError(sqlx::Error::RowNotFound);
-        assert_eq!(db_err.to_string(), "Database error: no rows returned by a query that expected to return at least one row");
+        assert_eq!(
+            db_err.to_string(),
+            "Database error: no rows returned by a query that expected to return at least one row"
+        );
 
         let not_found_err = AppError::NotFound("User not found".to_string());
         assert_eq!(not_found_err.to_string(), "Not found: User not found");
