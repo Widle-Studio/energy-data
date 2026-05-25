@@ -62,7 +62,7 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(
-            response.headers().get("content-type").unwrap(),
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
             "application/json"
         );
 
@@ -76,7 +76,7 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert_eq!(
-            response.headers().get("content-type").unwrap(),
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
             "application/json"
         );
 
@@ -90,7 +90,7 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(
-            response.headers().get("content-type").unwrap(),
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
             "application/json"
         );
 
@@ -106,7 +106,7 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(
-            response.headers().get("content-type").unwrap(),
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
             "application/json"
         );
 
@@ -120,7 +120,7 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(
-            response.headers().get("content-type").unwrap(),
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
             "application/json"
         );
 
