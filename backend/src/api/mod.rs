@@ -30,6 +30,8 @@ pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
             .map(|s| s.parse().expect("Invalid origin"))
             .collect();
         cors = cors.allow_origin(origins);
+    } else {
+        cors = cors.allow_origin(Vec::<header::HeaderValue>::new());
     }
 
     Router::new()
