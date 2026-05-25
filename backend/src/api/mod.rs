@@ -49,3 +49,136 @@ pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
 async fn health_check() -> &'static str {
     "OK"
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use sqlx::postgres::PgPoolOptions;
+    use tower::ServiceExt; // for `oneshot`
+
+    fn setup_state() -> AppState {
+        let db = PgPoolOptions::new()
+            .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
+            .unwrap();
+        let cache = Cache::new(100);
+        AppState {
+            db,
+            admin_token: Some("test_token".to_string()),
+            cache,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cors_empty_origins() {
+        let state = setup_state();
+        let app = create_router(state, vec![]);
+
+        let request = Request::builder()
+            .method("OPTIONS")
+            .uri("/api/v1/health")
+            .header(header::ORIGIN, "https://example.com")
+            .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        // When no origins are explicitly allowed (and no permissive defaults like Any),
+        // tower-http cors will generally just return 200 OK without the Access-Control-Allow-Origin header
+        // if the origin is not allowed, or reject it depending on exact configuration.
+        // Let's just verify it processes the request.
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(!response.headers().contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+    }
+
+    #[tokio::test]
+    async fn test_cors_specific_origin_allowed() {
+        let state = setup_state();
+        let allowed_origin = "https://allowed.example.com";
+        let app = create_router(state, vec![allowed_origin.to_string()]);
+
+        let request = Request::builder()
+            .method("OPTIONS")
+            .uri("/api/v1/health")
+            .header(header::ORIGIN, allowed_origin)
+            .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(),
+            allowed_origin
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cors_specific_origin_rejected() {
+        let state = setup_state();
+        let allowed_origin = "https://allowed.example.com";
+        let app = create_router(state, vec![allowed_origin.to_string()]);
+
+        let request = Request::builder()
+            .method("OPTIONS")
+            .uri("/api/v1/health")
+            .header(header::ORIGIN, "https://rejected.example.com")
+            .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(!response.headers().contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+    }
+
+    #[tokio::test]
+    async fn test_routes_mounted_health() {
+        let state = setup_state();
+        let app = create_router(state, vec![]);
+
+        let request = Request::builder()
+            .uri("/api/v1/health")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_routes_mounted_data() {
+        let state = setup_state();
+        let app = create_router(state, vec![]);
+
+        let request = Request::builder()
+            .uri("/api/v1/data")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        assert_ne!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_routes_mounted_admin() {
+        let state = setup_state();
+        let app = create_router(state, vec![]);
+
+        let request = Request::builder()
+            .method("POST")
+            .uri("/api/v1/admin/sync/worldbank")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        // Without auth, it should hit the middleware and return 401
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+}
