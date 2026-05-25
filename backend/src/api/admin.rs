@@ -9,11 +9,7 @@ use axum::{
 use serde_json::json;
 use subtle::ConstantTimeEq;
 
-use crate::{
-    api::AppState,
-    error::AppError,
-    services::world_bank::{WorldBankService, WorldBankSync},
-};
+use crate::{api::AppState, error::AppError, services::world_bank::WorldBankSync};
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/sync/worldbank", post(sync_worldbank))
@@ -66,12 +62,11 @@ pub async fn auth_middleware(
 async fn sync_worldbank(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let service = WorldBankService::new(state.db);
-    handle_sync_worldbank(&service).await
+    handle_sync_worldbank(state.world_bank_service.as_ref()).await
 }
 
-async fn handle_sync_worldbank<S: WorldBankSync>(
-    service: &S,
+async fn handle_sync_worldbank(
+    service: &dyn WorldBankSync,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let count = service.sync_electricity_data().await?;
 
@@ -87,27 +82,32 @@ mod tests {
     use axum::{
         body::Body,
         http::{Request as AxumRequest, StatusCode},
-        routing::get,
+        routing::{get, post},
     };
     use moka::future::Cache;
     use sqlx::postgres::PgPoolOptions;
-    use tower::ServiceExt;
+    use tower::util::ServiceExt;
 
     // Helper to create a test app with the auth middleware
     fn create_test_app(admin_token: Option<String>) -> Router {
-        let db = PgPoolOptions::new().connect_lazy("postgres://postgres:postgres@localhost:5432/testdb").unwrap();
+        let db = PgPoolOptions::new()
+            .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
+            .unwrap();
         let cache = Cache::new(100);
+        let mut mock_service = crate::services::world_bank::MockWorldBankSync::new();
+        mock_service
+            .expect_sync_electricity_data()
+            .returning(|| Ok(0));
         let state = AppState {
             db,
             admin_token,
             cache,
+            world_bank_service: std::sync::Arc::new(mock_service),
         };
 
         Router::new()
-            .route(
-                "/test",
-                get(|| async { "Success" })
-            )
+            .route("/test", get(|| async { "Success" }))
+            .route("/sync/worldbank", post(sync_worldbank))
             .route_layer(axum::middleware::from_fn_with_state(
                 state.clone(),
                 auth_middleware,
@@ -148,7 +148,6 @@ mod tests {
     async fn test_auth_middleware_invalid_format() {
         let app = create_test_app(Some("valid_token".to_string()));
 
-        // Missing "Bearer " prefix
         let request = AxumRequest::builder()
             .uri("/test")
             .header(header::AUTHORIZATION, "valid_token")
@@ -188,5 +187,105 @@ mod tests {
         let response = app.oneshot(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_sync_worldbank_route_success() {
+        let db = PgPoolOptions::new()
+            .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
+            .unwrap();
+        let cache = Cache::new(100);
+        let mut mock_service = crate::services::world_bank::MockWorldBankSync::new();
+        mock_service
+            .expect_sync_electricity_data()
+            .times(1)
+            .returning(|| Ok(42));
+
+        let state = AppState {
+            db,
+            admin_token: Some("valid_token".to_string()),
+            cache,
+            world_bank_service: std::sync::Arc::new(mock_service),
+        };
+
+        let app = Router::new()
+            .route("/sync/worldbank", post(sync_worldbank))
+            .route_layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            ))
+            .with_state(state);
+
+        let request = AxumRequest::builder()
+            .method("POST")
+            .uri("/sync/worldbank")
+            .header(header::AUTHORIZATION, "Bearer valid_token")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(json["status"], "success");
+        assert_eq!(
+            json["message"],
+            "Successfully synchronized 42 records from World Bank"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sync_worldbank_route_failure() {
+        let db = PgPoolOptions::new()
+            .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
+            .unwrap();
+        let cache = Cache::new(100);
+        let mut mock_service = crate::services::world_bank::MockWorldBankSync::new();
+        mock_service
+            .expect_sync_electricity_data()
+            .times(1)
+            .returning(|| {
+                Err(crate::error::AppError::InternalServerError(
+                    anyhow::anyhow!("Sync failed"),
+                ))
+            });
+
+        let state = AppState {
+            db,
+            admin_token: Some("valid_token".to_string()),
+            cache,
+            world_bank_service: std::sync::Arc::new(mock_service),
+        };
+
+        let app = Router::new()
+            .route("/sync/worldbank", post(sync_worldbank))
+            .route_layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            ))
+            .with_state(state);
+
+        let request = AxumRequest::builder()
+            .method("POST")
+            .uri("/sync/worldbank")
+            .header(header::AUTHORIZATION, "Bearer valid_token")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(json["error"], "Internal Server Error");
     }
 }

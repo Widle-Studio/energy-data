@@ -31,9 +31,12 @@ async fn main() -> anyhow::Result<()> {
         .build();
 
     let app_state = AppState {
-        db: pool,
+        db: pool.clone(),
         admin_token: config.admin_token,
         cache,
+        world_bank_service: std::sync::Arc::new(
+            energtx_backend::services::world_bank::WorldBankService::new(pool.clone()),
+        ),
     };
 
     let app = create_router(app_state, config.allowed_origins);

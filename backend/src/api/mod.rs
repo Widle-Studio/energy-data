@@ -17,6 +17,7 @@ pub struct AppState {
     pub db: PgPool,
     pub admin_token: Option<String>,
     pub cache: Cache<String, Arc<Vec<data::DataResponse>>>,
+    pub world_bank_service: std::sync::Arc<dyn crate::services::world_bank::WorldBankSync>,
 }
 
 pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
