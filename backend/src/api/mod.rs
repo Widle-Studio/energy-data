@@ -68,10 +68,12 @@ mod tests {
             .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
             .unwrap();
         let cache = Cache::new(100);
+        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
         AppState {
             db,
             admin_token: Some("test_token".to_string()),
             cache,
+            world_bank_service: std::sync::Arc::new(mock_service),
         }
     }
 
@@ -95,7 +97,11 @@ mod tests {
         // if the origin is not allowed, or reject it depending on exact configuration.
         // Let's just verify it processes the request.
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(!response.headers().contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+        assert!(
+            !response
+                .headers()
+                .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+        );
     }
 
     #[tokio::test]
@@ -116,7 +122,10 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(),
+            response
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .unwrap(),
             allowed_origin
         );
     }
@@ -138,7 +147,11 @@ mod tests {
         let response = app.oneshot(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(!response.headers().contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+        assert!(
+            !response
+                .headers()
+                .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+        );
     }
 
     #[tokio::test]

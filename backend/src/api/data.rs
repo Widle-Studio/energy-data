@@ -101,16 +101,16 @@ mod tests {
         http::{Request, StatusCode},
     };
     use moka::future::Cache;
-    use sqlx::PgPool;
-    use tower::ServiceExt;
     use serde_json::Value;
+    use sqlx::PgPool;
     use std::str::FromStr;
+    use tower::ServiceExt;
 
     async fn setup_test_db(pool: &PgPool) {
         // Insert continent
         let continent_id = uuid::Uuid::from_str("00000000-0000-0000-0000-000000000001").unwrap();
         sqlx::query(
-            "INSERT INTO continents (id, name, code) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING"
+            "INSERT INTO continents (id, name, code) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
         )
         .bind(continent_id)
         .bind("Europe")
@@ -199,15 +199,15 @@ mod tests {
     }
 
     fn create_test_app(db: PgPool) -> Router {
+        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
         let state = AppState {
             db,
             admin_token: None,
             cache: Cache::new(100),
+            world_bank_service: std::sync::Arc::new(mock_service),
         };
 
-        Router::new()
-            .merge(routes())
-            .with_state(state)
+        Router::new().merge(routes()).with_state(state)
     }
 
     #[sqlx::test]
@@ -217,18 +217,15 @@ mod tests {
 
         let response = app
             .clone()
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
             .await
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
         // We have 2 data points: DE 2020 and FR 2021
@@ -253,7 +250,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
         assert_eq!(data.len(), 1);
         assert_eq!(data[0]["country"], "DE");
@@ -271,7 +270,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(response_empty.status(), StatusCode::OK);
-        let body_empty = axum::body::to_bytes(response_empty.into_body(), usize::MAX).await.unwrap();
+        let body_empty = axum::body::to_bytes(response_empty.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data_empty: Vec<Value> = serde_json::from_slice(&body_empty).unwrap();
         assert_eq!(data_empty.len(), 0);
     }
@@ -294,7 +295,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
         assert_eq!(data.len(), 1);
         assert_eq!(data[0]["country"], "FR");
@@ -304,15 +307,15 @@ mod tests {
     #[sqlx::test]
     async fn test_get_data_cache(pool: PgPool) {
         setup_test_db(&pool).await;
+        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
         let state = AppState {
             db: pool.clone(),
             admin_token: None,
             cache: Cache::new(100),
+            world_bank_service: std::sync::Arc::new(mock_service),
         };
 
-        let app = Router::new()
-            .merge(routes())
-            .with_state(state.clone());
+        let app = Router::new().merge(routes()).with_state(state.clone());
 
         // First request populates the cache
         let response1 = app
@@ -345,7 +348,9 @@ mod tests {
             .await
             .unwrap();
 
-        let body = axum::body::to_bytes(response2.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response2.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(data.len(), 1);
