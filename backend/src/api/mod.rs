@@ -69,8 +69,7 @@ mod tests {
             .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
             .unwrap();
         let cache = Cache::new(100);
-        let mut mock_service = crate::services::world_bank::MockWorldBankSync::new();
-        mock_service.expect_sync_electricity_data().returning(|| Ok(0));
+        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
         AppState {
             db,
             admin_token: Some("test_token".to_string()),

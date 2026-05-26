@@ -224,8 +224,7 @@ mod tests {
     }
 
     fn create_test_app(db: PgPool) -> Router {
-        let mut mock_service = crate::services::world_bank::MockWorldBankSync::new();
-        mock_service.expect_sync_electricity_data().returning(|| Ok(0));
+        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
         let state = AppState {
             db,
             admin_token: None,
@@ -417,8 +416,7 @@ mod tests {
     #[sqlx::test]
     async fn test_get_data_cache(pool: PgPool) {
         setup_test_db(&pool).await;
-        let mut mock_service = crate::services::world_bank::MockWorldBankSync::new();
-        mock_service.expect_sync_electricity_data().returning(|| Ok(0));
+        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
         let state = AppState {
             db: pool.clone(),
             admin_token: None,
