@@ -9,7 +9,7 @@ use energtx_backend::{
 };
 use serde_json::Value;
 use std::time::Instant;
-use tower::ServiceExt;
+use tower::util::ServiceExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
