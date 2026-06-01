@@ -471,4 +471,60 @@ mod tests {
 
         assert_eq!(count.0, 0);
     }
+
+    #[sqlx::test]
+    async fn test_sync_electricity_data_partial_failure(pool: PgPool) {
+        let db = pool.clone();
+        let mock_server = MockServer::start().await;
+
+        // Valid data for one country
+        let mock_response_success = json!([
+            {
+                "page": 1, "pages": 1, "per_page": 100, "total": 1,
+                "sourceid": "2", "sourcename": "World Development Indicators", "lastupdated": "2024-03-28"
+            },
+            [
+                {
+                    "indicator": { "id": "EG.USE.ELEC.KH.PC", "value": "Electric power consumption (kWh per capita)" },
+                    "country": { "id": "US", "value": "United States" },
+                    "countryiso3code": "USA",
+                    "date": "2014", "value": 12993.9, "unit": "", "obs_status": "", "decimal": 0
+                }
+            ]
+        ]);
+
+        // Mock success for US
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path(format!("/country/{}/indicator/{}", "US", super::ELECTRICITY_INDICATOR)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_response_success))
+            .mount(&mock_server)
+            .await;
+
+        // Mock failure (500) for DE
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path(format!("/country/{}/indicator/{}", "DE", super::ELECTRICITY_INDICATOR)))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        // Mock success (but empty) for others
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"^/country/(CN|IN)/indicator/EG\.USE\.ELEC\.KH\.PC$",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([{"page":1,"pages":0,"total":0}, null])))
+            .mount(&mock_server)
+            .await;
+
+        let service = WorldBankService::new(db.clone()).with_base_url(mock_server.uri());
+        let result = service.sync_electricity_data().await;
+
+        // The overall operation should fail if *any* country fails
+        assert!(result.is_err());
+
+        // Let's verify the database state: since the queries are run concurrently and independent,
+        // it's possible that US succeeded before the error was returned, but we expect an error result
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Reqwest Error") || err_msg.contains("HTTP status client error (500 Internal Server Error)") || err_msg.contains("Internal server error") || err_msg.contains("Server returned 500"), "Unexpected error message: {}", err_msg);
+    }
 }
