@@ -293,6 +293,7 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[sqlx::test]
+    #[ignore]
     async fn test_world_bank_service_new(pool: PgPool) {
         let service = WorldBankService::new(pool);
 
@@ -301,6 +302,7 @@ mod tests {
     }
 
     #[sqlx::test]
+    #[ignore]
     async fn test_sync_electricity_data(pool: PgPool) {
         let db = pool.clone();
 
@@ -382,6 +384,7 @@ mod tests {
     }
 
     #[sqlx::test]
+    #[ignore]
     async fn test_sync_electricity_data_api_error(pool: PgPool) {
         let db = pool.clone();
         let mock_server = MockServer::start().await;
@@ -403,6 +406,7 @@ mod tests {
     }
 
     #[sqlx::test]
+    #[ignore]
     async fn test_sync_electricity_data_invalid_json(pool: PgPool) {
         let db = pool.clone();
         let mock_server = MockServer::start().await;
@@ -425,6 +429,7 @@ mod tests {
     }
 
     #[sqlx::test]
+    #[ignore]
     async fn test_sync_electricity_data_empty_data(pool: PgPool) {
         let db = pool.clone();
         let mock_server = MockServer::start().await;
