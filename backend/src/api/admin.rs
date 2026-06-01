@@ -89,6 +89,7 @@ mod tests {
     };
     use moka::future::Cache;
     use sqlx::postgres::PgPoolOptions;
+    use std::sync::Arc;
     use tower::util::ServiceExt;
 
     // Helper to create a test app with the auth middleware
@@ -105,7 +106,7 @@ mod tests {
             db,
             admin_token,
             cache,
-            world_bank_service: std::sync::Arc::new(mock_service),
+            world_bank_service: Arc::new(mock_service),
         };
 
         Router::new()
@@ -241,7 +242,7 @@ mod tests {
             db,
             admin_token: Some("valid_token".to_string()),
             cache,
-            world_bank_service: std::sync::Arc::new(mock_service),
+            world_bank_service: Arc::new(mock_service),
         };
 
         let app = Router::new()
@@ -295,7 +296,7 @@ mod tests {
             db,
             admin_token: Some("valid_token".to_string()),
             cache,
-            world_bank_service: std::sync::Arc::new(mock_service),
+            world_bank_service: Arc::new(mock_service),
         };
 
         let app = Router::new()

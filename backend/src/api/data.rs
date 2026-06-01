@@ -224,12 +224,11 @@ mod tests {
     }
 
     fn create_test_app(db: PgPool) -> Router {
-        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
         let state = AppState {
             db,
             admin_token: None,
             cache: Cache::new(100),
-            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
+            world_bank_service: Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
         };
 
         Router::new().merge(routes()).with_state(state)
@@ -351,7 +350,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(data.len(), 1);
@@ -378,7 +379,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(data.len(), 1);
@@ -404,7 +407,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(data.len(), 1);
@@ -416,12 +421,12 @@ mod tests {
     #[sqlx::test]
     async fn test_get_data_cache(pool: PgPool) {
         setup_test_db(&pool).await;
-        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
+
         let state = AppState {
             db: pool.clone(),
             admin_token: None,
             cache: Cache::new(100),
-            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
+            world_bank_service: Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
         };
 
         let app = Router::new().merge(routes()).with_state(state.clone());
