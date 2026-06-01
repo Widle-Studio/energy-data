@@ -16,7 +16,7 @@ pub mod data;
 pub struct AppState {
     pub db: PgPool,
     pub admin_token: Option<String>,
-    pub cache: Cache<String, Arc<Vec<data::DataResponse>>>,
+    pub cache: Cache<String, Arc<String>>,
     pub world_bank_service: std::sync::Arc<dyn crate::services::world_bank::WorldBankSync>,
 }
 
@@ -69,14 +69,18 @@ mod tests {
             .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
             .unwrap();
         let cache = Cache::new(100);
-        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
+        let _mock_service = crate::services::world_bank::MockWorldBankSync::new();
         AppState {
             db,
             admin_token: Some("test_token".to_string()),
             cache,
+<<<<<<< refactor-test-data-inserts-3520478519989031875
             world_bank_service: std::sync::Arc::new(
                 crate::services::world_bank::MockWorldBankSync::new(),
             ),
+=======
+            world_bank_service,
+>>>>>>> main
         }
     }
 
