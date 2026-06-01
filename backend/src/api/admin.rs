@@ -7,6 +7,7 @@ use axum::{
     routing::post,
 };
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
 use crate::{api::AppState, error::AppError, services::world_bank::WorldBankSync};
@@ -38,11 +39,10 @@ pub async fn auth_middleware(
                     let provided_bytes = token.as_bytes();
                     let expected_bytes = admin_token.as_bytes();
 
-                    if provided_bytes.len() != expected_bytes.len() {
-                        false
-                    } else {
-                        provided_bytes.ct_eq(expected_bytes).into()
-                    }
+                    let provided_hash = Sha256::digest(provided_bytes);
+                    let expected_hash = Sha256::digest(expected_bytes);
+
+                    provided_hash.ct_eq(&expected_hash).into()
                 } else {
                     false
                 }
