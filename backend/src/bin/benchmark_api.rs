@@ -8,8 +8,9 @@ use energtx_backend::{
     db,
 };
 use serde_json::Value;
+use std::sync::Arc;
 use std::time::Instant;
-use tower::ServiceExt;
+use tower::util::ServiceExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -34,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
         db: pool.clone(),
         admin_token: config.admin_token,
         cache,
-        world_bank_service: std::sync::Arc::new(
+        world_bank_service: Arc::new(
             energtx_backend::services::world_bank::WorldBankService::new(pool.clone()),
         ),
     };

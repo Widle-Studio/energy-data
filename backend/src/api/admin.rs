@@ -30,24 +30,21 @@ pub async fn auth_middleware(
         }
     };
 
-    let auth_header = req.headers().get(header::AUTHORIZATION);
+    let is_authorized = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|header_value| header_value.to_str().ok())
+        .and_then(|auth_str| auth_str.strip_prefix("Bearer "))
+        .is_some_and(|token| {
+            let provided_bytes = token.as_bytes();
+            let expected_bytes = admin_token.as_bytes();
 
-    let is_authorized = match auth_header {
-        Some(header_value) => {
-            if let Ok(auth_str) = header_value.to_str() {
-                if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                    let provided_hash = Sha256::digest(token.as_bytes());
-                    let expected_hash = Sha256::digest(admin_token.as_bytes());
-                    provided_hash.ct_eq(&expected_hash).into()
-                } else {
-                    false
-                }
-            } else {
+            if provided_bytes.len() != expected_bytes.len() {
                 false
+            } else {
+                provided_bytes.ct_eq(expected_bytes).into()
             }
-        }
-        None => false,
-    };
+        });
 
     if !is_authorized {
         return Err(AppError::Unauthorized(
@@ -85,6 +82,7 @@ mod tests {
     };
     use moka::future::Cache;
     use sqlx::postgres::PgPoolOptions;
+    use std::sync::Arc;
     use tower::util::ServiceExt;
 
     // Helper to create a test app with the auth middleware
@@ -101,7 +99,7 @@ mod tests {
             db,
             admin_token,
             cache,
-            world_bank_service: std::sync::Arc::new(mock_service),
+            world_bank_service: Arc::new(mock_service),
         };
 
         Router::new()
@@ -237,7 +235,7 @@ mod tests {
             db,
             admin_token: Some("valid_token".to_string()),
             cache,
-            world_bank_service: std::sync::Arc::new(mock_service),
+            world_bank_service: Arc::new(mock_service),
         };
 
         let app = Router::new()
@@ -291,7 +289,7 @@ mod tests {
             db,
             admin_token: Some("valid_token".to_string()),
             cache,
-            world_bank_service: std::sync::Arc::new(mock_service),
+            world_bank_service: Arc::new(mock_service),
         };
 
         let app = Router::new()
