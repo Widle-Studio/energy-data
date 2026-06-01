@@ -1,10 +1,10 @@
+use std::sync::Arc;
 pub mod api;
 pub mod config;
 pub mod db;
 pub mod error;
 pub mod models;
 pub mod services;
-pub mod utils;
 
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -38,9 +38,9 @@ async fn main() -> anyhow::Result<()> {
         db: pool.clone(),
         admin_token: config.admin_token,
         cache,
-        world_bank_service: std::sync::Arc::new(
-            crate::services::world_bank::WorldBankService::new(pool.clone()),
-        ),
+        world_bank_service: Arc::new(crate::services::world_bank::WorldBankService::new(
+            pool.clone(),
+        )),
     };
     let app = api::create_router(app_state, config.allowed_origins);
 

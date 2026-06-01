@@ -16,7 +16,7 @@ pub mod data;
 pub struct AppState {
     pub db: PgPool,
     pub admin_token: Option<String>,
-    pub cache: Cache<String, Arc<Vec<data::DataResponse>>>,
+    pub cache: Cache<String, Arc<String>>,
     pub world_bank_service: std::sync::Arc<dyn crate::services::world_bank::WorldBankSync>,
 }
 
@@ -74,7 +74,7 @@ mod tests {
             db,
             admin_token: Some("test_token".to_string()),
             cache,
-            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
+            world_bank_service,
         }
     }
 
