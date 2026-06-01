@@ -238,7 +238,7 @@ impl WorldBankService {
         if !tuples.is_empty() {
             let chunk_size = 65535 / 4;
 
-            for chunk in tuples.chunks(chunk_size) {
+            let futures = tuples.chunks(chunk_size).map(|chunk| {
                 let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
                     "INSERT INTO energy_data (country_id, indicator_id, year, value) ",
                 );
@@ -255,9 +255,14 @@ impl WorldBankService {
 
                 query_builder.push(" ON CONFLICT (country_id, indicator_id, year) DO UPDATE SET value = EXCLUDED.value");
 
-                let query = query_builder.build();
-                let result = query.execute(&self.db).await;
+                let db = self.db.clone();
+                async move {
+                    query_builder.build().execute(&db).await
+                }
+            });
 
+            let results = futures::future::join_all(futures).await;
+            for result in results {
                 match result {
                     Ok(res) => country_inserted_count += res.rows_affected() as usize,
                     Err(e) => tracing::error!("Failed to bulk insert records: {}", e),
