@@ -199,10 +199,12 @@ mod tests {
     }
 
     fn create_test_app(db: PgPool) -> Router {
+        let world_bank_service = Arc::new(crate::services::world_bank::MockWorldBankSync::new());
         let state = AppState {
             db,
             admin_token: None,
             cache: Cache::new(100),
+            world_bank_service,
         };
 
         Router::new()
@@ -304,10 +306,12 @@ mod tests {
     #[sqlx::test]
     async fn test_get_data_cache(pool: PgPool) {
         setup_test_db(&pool).await;
+        let world_bank_service = Arc::new(crate::services::world_bank::MockWorldBankSync::new());
         let state = AppState {
             db: pool.clone(),
             admin_token: None,
             cache: Cache::new(100),
+            world_bank_service,
         };
 
         let app = Router::new()
