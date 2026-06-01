@@ -17,7 +17,7 @@ pub struct AppState {
     pub db: PgPool,
     pub admin_token: Option<String>,
     pub cache: Cache<String, Arc<Vec<data::DataResponse>>>,
-    pub world_bank_service: std::sync::Arc<dyn crate::services::world_bank::WorldBankSync>,
+    pub world_bank_service: Arc<dyn crate::services::world_bank::WorldBankSync>,
 }
 
 pub fn create_router(state: AppState, allowed_origins: Vec<String>) -> Router {
@@ -69,14 +69,12 @@ mod tests {
             .connect_lazy("postgres://postgres:postgres@localhost:5432/testdb")
             .unwrap();
         let cache = Cache::new(100);
-        let mock_service = crate::services::world_bank::MockWorldBankSync::new();
+
         AppState {
             db,
             admin_token: Some("test_token".to_string()),
             cache,
-            world_bank_service: std::sync::Arc::new(
-                crate::services::world_bank::MockWorldBankSync::new(),
-            ),
+            world_bank_service: Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
         }
     }
 
