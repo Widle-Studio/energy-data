@@ -5,7 +5,6 @@ pub mod db;
 pub mod error;
 pub mod models;
 pub mod services;
-pub mod utils;
 
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
