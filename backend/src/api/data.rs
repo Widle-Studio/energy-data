@@ -130,30 +130,24 @@ mod tests {
 
         // Insert country
         let country_id = uuid::Uuid::from_str("00000000-0000-0000-0000-000000000002").unwrap();
-        sqlx::query(
-            "INSERT INTO countries (id, continent_id, name, iso_alpha2, iso_alpha3) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING"
-        )
-        .bind(country_id)
-        .bind(continent_id)
-        .bind("Germany")
-        .bind("DE")
-        .bind("DEU")
-        .execute(pool)
-        .await
-        .unwrap();
-
         let country_id2 = uuid::Uuid::from_str("00000000-0000-0000-0000-000000000012").unwrap();
-        sqlx::query(
-            "INSERT INTO countries (id, continent_id, name, iso_alpha2, iso_alpha3) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING"
-        )
-        .bind(country_id2)
-        .bind(continent_id)
-        .bind("France")
-        .bind("FR")
-        .bind("FRA")
-        .execute(pool)
-        .await
-        .unwrap();
+
+        for (id, name, iso2, iso3) in [
+            (country_id, "Germany", "DE", "DEU"),
+            (country_id2, "France", "FR", "FRA"),
+        ] {
+            sqlx::query(
+                "INSERT INTO countries (id, continent_id, name, iso_alpha2, iso_alpha3) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING"
+            )
+            .bind(id)
+            .bind(continent_id)
+            .bind(name)
+            .bind(iso2)
+            .bind(iso3)
+            .execute(pool)
+            .await
+            .unwrap();
+        }
 
         // Insert data source
         let source_id = uuid::Uuid::from_str("00000000-0000-0000-0000-000000000003").unwrap();
@@ -170,66 +164,43 @@ mod tests {
 
         // Insert indicator
         let indicator_id = uuid::Uuid::from_str("00000000-0000-0000-0000-000000000004").unwrap();
-        sqlx::query(
-            "INSERT INTO indicators (id, source_id, name, code, unit, category) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING"
-        )
-        .bind(indicator_id)
-        .bind(source_id)
-        .bind("Test Indicator")
-        .bind("TEST.IND")
-        .bind("Unit")
-        .bind("Category")
-        .execute(pool)
-        .await
-        .unwrap();
-
         let indicator_id2 = uuid::Uuid::from_str("00000000-0000-0000-0000-000000000014").unwrap();
-        sqlx::query(
-            "INSERT INTO indicators (id, source_id, name, code, unit, category) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING"
-        )
-        .bind(indicator_id2)
-        .bind(source_id)
-        .bind("Another Test Indicator")
-        .bind("OTHER.IND")
-        .bind("Unit")
-        .bind("Category")
-        .execute(pool)
-        .await
-        .unwrap();
+
+        for (id, name, code) in [
+            (indicator_id, "Test Indicator", "TEST.IND"),
+            (indicator_id2, "Another Test Indicator", "OTHER.IND"),
+        ] {
+            sqlx::query(
+                "INSERT INTO indicators (id, source_id, name, code, unit, category) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING"
+            )
+            .bind(id)
+            .bind(source_id)
+            .bind(name)
+            .bind(code)
+            .bind("Unit")
+            .bind("Category")
+            .execute(pool)
+            .await
+            .unwrap();
+        }
 
         // Insert energy data
-        sqlx::query(
-            "INSERT INTO energy_data (country_id, indicator_id, year, value) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING"
-        )
-        .bind(country_id)
-        .bind(indicator_id)
-        .bind(2020)
-        .bind(bigdecimal::BigDecimal::from(100))
-        .execute(pool)
-        .await
-        .unwrap();
-
-        sqlx::query(
-            "INSERT INTO energy_data (country_id, indicator_id, year, value) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING"
-        )
-        .bind(country_id2)
-        .bind(indicator_id)
-        .bind(2021)
-        .bind(bigdecimal::BigDecimal::from(200))
-        .execute(pool)
-        .await
-        .unwrap();
-
-        sqlx::query(
-            "INSERT INTO energy_data (country_id, indicator_id, year, value) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING"
-        )
-        .bind(country_id)
-        .bind(indicator_id2)
-        .bind(2022)
-        .bind(bigdecimal::BigDecimal::from(300))
-        .execute(pool)
-        .await
-        .unwrap();
+        for (c_id, i_id, year, value) in [
+            (country_id, indicator_id, 2020, 100),
+            (country_id2, indicator_id, 2021, 200),
+            (country_id, indicator_id2, 2022, 300),
+        ] {
+            sqlx::query(
+                "INSERT INTO energy_data (country_id, indicator_id, year, value) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING"
+            )
+            .bind(c_id)
+            .bind(i_id)
+            .bind(year)
+            .bind(bigdecimal::BigDecimal::from(value))
+            .execute(pool)
+            .await
+            .unwrap();
+        }
     }
 
     fn create_test_app(db: PgPool) -> Router {
@@ -238,7 +209,9 @@ mod tests {
             db,
             admin_token: None,
             cache: Cache::new(100),
-            world_bank_service,
+            world_bank_service: std::sync::Arc::new(
+                crate::services::world_bank::MockWorldBankSync::new(),
+            ),
         };
 
         Router::new().merge(routes()).with_state(state)
@@ -443,7 +416,9 @@ mod tests {
             db: pool.clone(),
             admin_token: None,
             cache: Cache::new(100),
-            world_bank_service,
+            world_bank_service: std::sync::Arc::new(
+                crate::services::world_bank::MockWorldBankSync::new(),
+            ),
         };
 
         let app = Router::new().merge(routes()).with_state(state.clone());

@@ -74,7 +74,13 @@ mod tests {
             db,
             admin_token: Some("test_token".to_string()),
             cache,
+<<<<<<< refactor-test-data-inserts-3520478519989031875
+            world_bank_service: std::sync::Arc::new(
+                crate::services::world_bank::MockWorldBankSync::new(),
+            ),
+=======
             world_bank_service,
+>>>>>>> main
         }
     }
 
