@@ -229,7 +229,9 @@ mod tests {
             db,
             admin_token: None,
             cache: Cache::new(100),
-            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
+            world_bank_service: std::sync::Arc::new(
+                crate::services::world_bank::MockWorldBankSync::new(),
+            ),
         };
 
         Router::new().merge(routes()).with_state(state)
@@ -351,7 +353,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(data.len(), 1);
@@ -378,7 +382,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(data.len(), 1);
@@ -404,7 +410,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let data: Vec<Value> = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(data.len(), 1);
@@ -421,7 +429,9 @@ mod tests {
             db: pool.clone(),
             admin_token: None,
             cache: Cache::new(100),
-            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
+            world_bank_service: std::sync::Arc::new(
+                crate::services::world_bank::MockWorldBankSync::new(),
+            ),
         };
 
         let app = Router::new().merge(routes()).with_state(state.clone());
