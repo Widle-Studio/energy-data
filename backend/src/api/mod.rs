@@ -74,7 +74,9 @@ mod tests {
             db,
             admin_token: Some("test_token".to_string()),
             cache,
-            world_bank_service: std::sync::Arc::new(crate::services::world_bank::MockWorldBankSync::new()),
+            world_bank_service: std::sync::Arc::new(
+                crate::services::world_bank::MockWorldBankSync::new(),
+            ),
         }
     }
 
