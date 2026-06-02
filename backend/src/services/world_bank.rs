@@ -129,26 +129,32 @@ impl WorldBankService {
             return Ok(std::collections::HashMap::new());
         }
 
-        let mut mapping = std::collections::HashMap::new();
-
         // Postgres allows a maximum of 65535 parameters per query.
         // We have 3 parameters per country (name, iso_alpha2, iso_alpha3).
         let chunk_size = 65535 / 3;
 
-        for chunk in countries_vec.chunks(chunk_size) {
+        let futures = countries_vec.chunks(chunk_size).map(|chunk| {
             let mut query_builder: QueryBuilder<Postgres> =
                 QueryBuilder::new("INSERT INTO countries (name, iso_alpha2, iso_alpha3) ");
 
             query_builder.push_values(chunk, |mut b, (name, iso2, iso3)| {
-                b.push_bind(name).push_bind(iso2).push_bind(iso3);
+                b.push_bind(*name).push_bind(*iso2).push_bind(*iso3);
             });
 
             query_builder.push(" ON CONFLICT (iso_alpha2) DO UPDATE SET name = EXCLUDED.name RETURNING iso_alpha2, id");
 
-            let query = query_builder.build_query_as::<(String, Uuid)>();
-            let results = query.fetch_all(&self.db).await?;
+            let db = self.db.clone();
+            async move {
+                let query = query_builder.build_query_as::<(String, Uuid)>();
+                query.fetch_all(&db).await
+            }
+        });
 
-            for (iso2, id) in results {
+        let results = futures::future::try_join_all(futures).await?;
+
+        let mut mapping = std::collections::HashMap::with_capacity(countries_vec.len());
+        for chunk_results in results {
+            for (iso2, id) in chunk_results {
                 mapping.insert(iso2, id);
             }
         }
